@@ -828,3 +828,16 @@ class ReportPrinter:
 
         SEP = "=" * 65
         sep = "-" * 65
+
+        print(f"\n{SEP}")
+        print(f"  BACKTEST RESULTS REPORT")
+        print(SEP)
+
+        print(f"\n{'PORTFOLIO PERFORMANCE':^65}")
+        print(sep)
+        print(f"  Initial Capital      : ${results['initial_capital']:>15,.2f}")
+        print(f"  Final Capital        : ${results['final_capital']:>15,.2f}")
+        print(f"  Total Return         : {results['total_return_pct']:>14.2f}%")
+        print(f"  Annualized Return    : {results['annualized_return_pct']:>14.2f}%")
+        if results.get("aborted_early"):
+            print(f"  Strategy aborted early (max drawdown limit hit)")
