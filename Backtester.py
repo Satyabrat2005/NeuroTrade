@@ -392,3 +392,10 @@ class Backtester:
             return None
 
         pos.bars_held += 1
+
+        if pos.side == PositionSide.LONG:
+            pos.unrealized_pnl = (close - pos.entry_price) * pos.size
+            excursion_low = (low - pos.entry_price) / pos.entry_price
+            excursion_high = (high - pos.entry_price) / pos.entry_price
+            pos.mae = min(pos.mae, excursion_low)
+            pos.mfe = max(pos.mfe, excursion_high)
