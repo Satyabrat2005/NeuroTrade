@@ -384,3 +384,111 @@ class Backtester:
         self.trades.append(trade)
         self.position = Position()
         return trade
+
+    def _update_position(self, high: float, low: float, close: float):
+        """Update trailing stops, MAE/MFE, unrealized PnL."""
+        pos = self.position
+        if pos.side == PositionSide.FLAT:
+            return None
+
+        pos.bars_held += 1
+
+        if pos.side == PositionSide.LONG:
+            pos.unrealized_pnl = (close - pos.entry_price) * pos.size
+            excursion_low = (low - pos.entry_price) / pos.entry_price
+            excursion_high = (high - pos.entry_price) / pos.entry_price
+            pos.mae = min(pos.mae, excursion_low)
+            pos.mfe = max(pos.mfe, excursion_high)
+
+            if pos.trailing_stop_pct:
+                new_ts = high * (1 - pos.trailing_stop_pct)
+                pos.trailing_stop = max(pos.trailing_stop or 0, new_ts)
+                if low <= pos.trailing_stop:
+                    return "trailing_stop"
+
+            if pos.stop_loss and low <= pos.stop_loss:
+                return "stop_loss"
+            if pos.take_profit and high >= pos.take_profit:
+                return "take_profit"
+
+        else:  # SHORT
+            pos.unrealized_pnl = (pos.entry_price - close) * pos.size
+            excursion_high = (pos.entry_price - high) / pos.entry_price
+            excursion_low = (pos.entry_price - low) / pos.entry_price
+            pos.mae = min(pos.mae, excursion_high)
+            pos.mfe = max(pos.mfe, excursion_low)
+            if pos.trailing_stop_pct:
+                new_ts = low * (1 + pos.trailing_stop_pct)
+                pos.trailing_stop = min(pos.trailing_stop or float('inf'), new_ts)
+                if high >= pos.trailing_stop:
+                    return "trailing_stop"
+
+            if pos.stop_loss and high >= pos.stop_loss:
+                return "stop_loss"
+            if pos.take_profit and low <= pos.take_profit:
+                return "take_profit"
+
+        return None
+        
+    # MAIN RUN
+    def run(self, df: pd.DataFrame, signal_func: Callable,
+            signal_kwargs: dict = None) -> dict:
+        """
+        Run backtest.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            OHLCV data with indicators pre-computed.
+        signal_func : Callable
+            Function(df, i, **kwargs) -> PositionSide or None
+            Return PositionSide.LONG / SHORT / FLAT or None.
+        signal_kwargs : dict
+            Extra args passed to signal_func.
+
+        Returns
+        -------
+        dict : Full results dictionary.
+        """
+        self.reset()
+        signal_kwargs = signal_kwargs or {}
+        regimes = RegimeDetector.detect(df)
+
+        prev_equity = self.config.initial_capital
+
+        for i in range(len(df)):
+            row = df.iloc[i]
+            date = df.index[i]
+            o, h, l, c = row['Open'], row['High'], row['Low'], row['Close']
+            atr = row.get('ATR', None) if hasattr(row, 'get') else None
+            regime = regimes.iloc[i]
+            # Update open position
+            exit_reason = self._update_position(h, l, c)
+            if exit_reason and self.position.side != PositionSide.FLAT:
+                self._close_position(date, c, reason=exit_reason, regime=regime)
+
+            #  Get signal
+            signal = signal_func(df, i, **signal_kwargs)
+
+            # --- Execute signal ---
+            if signal is not None:
+                current_side = self.position.side
+
+                # Flip or open
+                if signal == PositionSide.FLAT and current_side != PositionSide.FLAT:
+                    self._close_position(date, o, reason="signal", regime=regime)
+
+                elif signal == PositionSide.LONG and current_side != PositionSide.LONG:
+                    if current_side == PositionSide.SHORT:
+                        self._close_position(date, o, reason="signal_flip", regime=regime)
+                    self._open_position(date, o, PositionSide.LONG, atr=atr)
+
+                elif signal == PositionSide.SHORT and self.config.allow_shorting and current_side != PositionSide.SHORT:
+                    if current_side == PositionSide.LONG:
+                        self._close_position(date, o, reason="signal_flip", regime=regime)
+                    self._open_position(date, o, PositionSide.SHORT, atr=atr)
+
+            # Equity snapshot
+            portfolio_value = self.capital
+            if self.position.side != PositionSide.FLAT:
+                portfolio_value += self.position.unrealized_pnl
