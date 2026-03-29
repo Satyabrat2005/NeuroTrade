@@ -627,3 +627,19 @@ class WalkForwardOptimizer:
         self.config = backtester_config or BacktestConfig()
         self.n_splits = n_splits
         self.train_ratio = train_ratio
+
+    def run(self, df: pd.DataFrame, signal_func: Callable,
+            param_grid: dict, optimize_metric: str = "sharpe_ratio") -> dict:
+        """
+        Run walk-forward optimization.
+
+        param_grid : dict of {param_name: [values]}
+        """
+        n = len(df)
+        window = n // self.n_splits
+        oos_results = []
+        best_params_per_fold = []
+
+        print(f"\n{'='*60}")
+        print(f"  WALK-FORWARD OPTIMIZATION  |  {self.n_splits} folds")
+        print(f"{'='*60}")
