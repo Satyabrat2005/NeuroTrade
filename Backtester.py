@@ -614,3 +614,16 @@ class Backtester:
         }
 
         return results
+# WALK-FORWARD OPTIMIZER
+
+class WalkForwardOptimizer:
+    """
+    Expanding / rolling window walk-forward analysis.
+    Prevents overfitting by testing on out-of-sample windows.
+    """
+
+    def __init__(self, backtester_config: BacktestConfig = None,
+                 n_splits: int = 5, train_ratio: float = 0.7):
+        self.config = backtester_config or BacktestConfig()
+        self.n_splits = n_splits
+        self.train_ratio = train_ratio
