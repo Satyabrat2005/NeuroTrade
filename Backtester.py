@@ -410,3 +410,10 @@ class Backtester:
                 return "stop_loss"
             if pos.take_profit and high >= pos.take_profit:
                 return "take_profit"
+
+        else:  # SHORT
+            pos.unrealized_pnl = (pos.entry_price - close) * pos.size
+            excursion_high = (pos.entry_price - high) / pos.entry_price
+            excursion_low = (pos.entry_price - low) / pos.entry_price
+            pos.mae = min(pos.mae, excursion_high)
+            pos.mfe = max(pos.mfe, excursion_low)
