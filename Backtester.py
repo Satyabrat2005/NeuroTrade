@@ -217,3 +217,18 @@ class RiskAnalytics:
             "avg_consecutive_losses": np.mean(losses) if losses else 0,
         }
 
+# REGIME DETECTION ENGINE
+
+
+class RegimeDetector:
+
+    @staticmethod
+    def detect(df: pd.DataFrame) -> pd.Series:
+        """
+        Classify market regime at each bar using:
+        - 50/200 SMA trend direction
+        - ATR-based volatility classification
+        """
+        regimes = []
+        closes = df['Close'].values
+        n = len(closes)
