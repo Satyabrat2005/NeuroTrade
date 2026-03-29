@@ -878,3 +878,15 @@ class ReportPrinter:
         print(f"  Largest Loss         : ${results['largest_loss']:>14,.2f}")
         print(f"  Avg MAE              : {results['avg_mae_pct']:>14.2f}%")
         print(f"  Avg MFE              : {results['avg_mfe_pct']:>14.2f}%")
+
+        print(f"\n{'STREAK ANALYSIS':^65}")
+        print(sep)
+        print(f"  Max Consec. Wins     : {results['max_consecutive_wins']:>15}")
+        print(f"  Max Consec. Losses   : {results['max_consecutive_losses']:>15}")
+        print(f"  Avg Consec. Wins     : {results['avg_consecutive_wins']:>15.1f}")
+        print(f"  Avg Consec. Losses   : {results['avg_consecutive_losses']:>15.1f}")
+
+        print(f"\n{'EXIT REASON BREAKDOWN':^65}")
+        print(sep)
+        for reason, count in results.get("exit_reasons", {}).items():
+            print(f"  {reason:<25}: {count:>5}")
