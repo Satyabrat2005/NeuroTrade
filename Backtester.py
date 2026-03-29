@@ -923,3 +923,14 @@ class ReportPrinter:
             sr = mc_results["sharpe_ratio"]
             print(f"  Sharpe (p5-p95)      : [{sr['p5']:.3f}, {sr['p95']:.3f}]")
 
+        if wf_results is not None and not wf_results["fold_results"].empty:
+            print(f"\n{'WALK-FORWARD SUMMARY':^65}")
+            print(sep)
+            print(f"  Avg OOS Score        : {wf_results['avg_oos_score']:>15.4f}")
+            print(f"  Avg OOS Return       : {wf_results['avg_oos_return_pct']:>14.2f}%")
+            print(f"  Efficiency Ratio     : {wf_results['efficiency_ratio']:>15.4f}")
+            print(f"  (Efficiency < 1 = overfitting risk)")
+            print(f"\n  Fold Details:")
+            print(wf_results["fold_results"].to_string(index=False))
+
+        print(f"\n{SEP}\n")
