@@ -703,3 +703,18 @@ class WalkForwardOptimizer:
             "efficiency_ratio": (summary_df["oos_score"] / summary_df["train_score"]).mean() if not summary_df.empty else np.nan,
             "best_params_per_fold": best_params_per_fold,
         }
+
+    @staticmethod
+    def _param_combinations(param_grid: dict):
+        import itertools
+        keys = list(param_grid.keys())
+        for values in itertools.product(*param_grid.values()):
+            yield dict(zip(keys, values))
+
+# MONTE CARLO SIMULATOR
+
+class MonteCarloSimulator:
+    """
+    Bootstrap Monte Carlo simulation on trade sequence.
+    Answers: "Is this edge statistically significant?"
+    """
