@@ -584,3 +584,16 @@ class Backtester:
             "profit_factor": ra.profit_factor(trades),
             "expectancy_per_trade": ra.expectancy(trades),
             "kelly_criterion_pct": ra.kelly_criterion(trades) * 100,
+
+            # ── Trade PnL ──
+            "gross_profit": sum(t.pnl for t in winning_trades),
+            "gross_loss": sum(t.pnl for t in losing_trades),
+            "avg_win": np.mean([t.pnl for t in winning_trades]) if winning_trades else 0,
+            "avg_loss": np.mean([t.pnl for t in losing_trades]) if losing_trades else 0,
+            "largest_win": max((t.pnl for t in trades), default=0),
+            "largest_loss": min((t.pnl for t in trades), default=0),
+            "avg_trade_duration_bars": np.mean([t.duration_bars for t in trades]) if trades else 0,
+
+            # ── MAE / MFE ──
+            "avg_mae_pct": avg_mae * 100,
+            "avg_mfe_pct": avg_mfe * 100,
