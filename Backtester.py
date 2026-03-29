@@ -384,3 +384,11 @@ class Backtester:
         self.trades.append(trade)
         self.position = Position()
         return trade
+
+    def _update_position(self, high: float, low: float, close: float):
+        """Update trailing stops, MAE/MFE, unrealized PnL."""
+        pos = self.position
+        if pos.side == PositionSide.FLAT:
+            return None
+
+        pos.bars_held += 1
