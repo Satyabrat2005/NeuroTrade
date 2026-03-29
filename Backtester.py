@@ -1090,3 +1090,5 @@ if __name__ == "__main__":
         config        = config,
         run_walk_forward = True,
         run_monte_carlo  = True,
+        param_grid    = None,   # pass dict to enable WFO grid search
+    )
