@@ -274,3 +274,14 @@ class PositionSizer:
             return 0
         risk_amount = capital * risk_pct
         return risk_amount / atr
+
+    @staticmethod
+    def volatility_scaled(capital: float, price: float,
+                          returns: pd.Series, target_vol: float = 0.15,
+                          ann: int = 252) -> float:
+        """Scale position so portfolio vol matches target_vol."""
+        realized_vol = returns.std() * np.sqrt(ann)
+        if realized_vol == 0:
+            return 0
+        scale = target_vol / realized_vol
+        return (capital * scale) / price
