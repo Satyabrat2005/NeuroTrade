@@ -84,3 +84,19 @@ class BacktestConfig:
 # RISK & PERFORMANCE ANALYTICS ENGINE
 
 class RiskAnalytics:
+    
+    @staticmethod
+    def sharpe_ratio(returns: pd.Series, rf: float = 0.06, ann: int = 252) -> float:
+        excess = returns - rf / ann
+        if returns.std() == 0:
+            return 0.0
+        return np.sqrt(ann) * excess.mean() / returns.std()
+
+    @staticmethod
+    def sortino_ratio(returns: pd.Series, rf: float = 0.06, ann: int = 252) -> float:
+        excess = returns - rf / ann
+        downside = returns[returns < 0].std()
+        if downside == 0:
+            return 0.0
+        return np.sqrt(ann) * excess.mean() / downside
+
