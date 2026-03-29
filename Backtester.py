@@ -350,3 +350,16 @@ class Backtester:
         exec_price = self._apply_slippage(
             price, OrderSide.SELL if side == PositionSide.LONG else OrderSide.BUY
         )
+
+        trade_value = self.position.size * exec_price
+        commission = self._apply_commission(trade_value)
+        commission += getattr(self.position, '_commission_paid', 0)
+
+        if side == PositionSide.LONG:
+            pnl = (exec_price - self.position.entry_price) * self.position.size - commission
+            pnl_pct = (exec_price - self.position.entry_price) / self.position.entry_price
+        else:
+            pnl = (self.position.entry_price - exec_price) * self.position.size - commission
+            pnl_pct = (self.position.entry_price - exec_price) / self.position.entry_price
+
+        self.capital += self.position.size * self.position.entry_price + pnl
