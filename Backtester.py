@@ -949,3 +949,146 @@ def rsi_mean_reversion_signal(df: pd.DataFrame, i: int,
     elif rsi > overbought:
         return PositionSide.SHORT
     return None
+
+def macd_crossover_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
+    if i < 1 or 'MACD' not in df.columns or 'MACD_signal' not in df.columns:
+        return None
+    macd_prev = df['MACD'].iloc[i - 1]
+    sig_prev = df['MACD_signal'].iloc[i - 1]
+    macd_cur = df['MACD'].iloc[i]
+    sig_cur = df['MACD_signal'].iloc[i]
+
+    if macd_prev <= sig_prev and macd_cur > sig_cur:
+        return PositionSide.LONG
+    elif macd_prev >= sig_prev and macd_cur < sig_cur:
+        return PositionSide.SHORT
+    return None
+
+def sma_trend_signal(df: pd.DataFrame, i: int,
+                     fast: int = 20, slow: int = 50) -> Optional[PositionSide]:
+    fast_col = f'SMA_{fast}'
+    slow_col = f'SMA_{slow}'
+    if i < 1 or fast_col not in df.columns or slow_col not in df.columns:
+        return None
+    if df[fast_col].iloc[i] > df[slow_col].iloc[i]:
+        return PositionSide.LONG
+    elif df[fast_col].iloc[i] < df[slow_col].iloc[i]:
+        return PositionSide.SHORT
+    return None
+def bollinger_breakout_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
+    if i < 1 or 'BB_Upper' not in df.columns:
+        return None
+    close = df['Close'].iloc[i]
+    if close > df['BB_Upper'].iloc[i]:
+        return PositionSide.LONG
+    elif close < df['BB_Lower'].iloc[i]:
+        return PositionSide.SHORT
+    return None
+
+# QUICK-START RUNNER
+def run_full_analysis(df: pd.DataFrame,
+                      signal_func: Callable,
+                      signal_kwargs: dict = None,
+                      config: BacktestConfig = None,
+                      run_walk_forward: bool = True,
+                      run_monte_carlo: bool = True,
+                      param_grid: dict = None) -> dict:
+    """
+    One-call full analysis:
+      1. Backtest
+      2. Benchmark comparison
+      3. Monte Carlo
+      4. Walk-Forward (optional)
+      5. Print report
+    """
+    config = config or BacktestConfig()
+    signal_kwargs = signal_kwargs or {}
+
+    print("\n>> Running Backtest...")
+    bt = Backtester(config)
+    results = bt.run(df, signal_func, signal_kwargs)
+
+    print(">> Running Benchmark Comparison...")
+    bench = BenchmarkComparator.run(
+        results['equity_curve']['equity'],
+        df, config.initial_capital, config.risk_free_rate
+    )
+
+    mc_results = None
+    if run_monte_carlo and results['trades']:
+        print(f">> Running Monte Carlo ({10_000} simulations)...")
+        mc = MonteCarloSimulator(n_simulations=10_000)
+        mc_results = mc.run(results['trades'], config.initial_capital)
+
+    wf_results = None
+
+    if run_walk_forward and param_grid:
+        print(">> Running Walk-Forward Optimization...")
+        wf = WalkForwardOptimizer(config, n_splits=5)
+        wf_results = wf.run(df, signal_func, param_grid)
+
+    ReportPrinter.print_full(results, wf_results, mc_results, bench)
+
+    return {
+        "backtest": results,
+        "benchmark": bench,
+        "monte_carlo": mc_results,
+        "walk_forward": wf_results,
+    }
+
+# EXAMPLE USAGE
+if __name__ == "__main__":
+    """
+    Drop-in example. Replace `df` with your real OHLCV + indicators DataFrame.
+    Your indicators.py add_all_indicators(df) populates the needed columns.
+    """
+
+    # Generate synthetic OHLCV for demo 
+    np.random.seed(42)
+    n = 1000
+    dates = pd.date_range("2021-01-01", periods=n, freq="B")
+    close = 1000 * np.exp(np.cumsum(np.random.normal(0.0003, 0.015, n)))
+    df = pd.DataFrame({
+        "Open":   close * (1 + np.random.normal(0, 0.002, n)),
+        "High":   close * (1 + np.abs(np.random.normal(0, 0.008, n))),
+        "Low":    close * (1 - np.abs(np.random.normal(0, 0.008, n))),
+        "Close":  close,
+        "Volume": np.random.randint(100_000, 1_000_000, n),
+    }, index=dates)
+
+    # Apply your indicators 
+    # from indicators import add_all_indicators
+    # df = add_all_indicators(df)
+
+    # Manual minimal indicators for demo
+    df['SMA_20'] = df['Close'].rolling(20).mean()
+    df['SMA_50'] = df['Close'].rolling(50).mean()
+    df['RSI']    = 50 + np.random.normal(0, 15, n)   # placeholder
+    df['MACD']         = np.random.normal(0, 2, n)
+    df['MACD_signal']  = np.random.normal(0, 2, n)
+    df['BB_Upper'] = df['SMA_20'] + 2 * df['Close'].rolling(20).std()
+    df['BB_Lower'] = df['SMA_20'] - 2 * df['Close'].rolling(20).std()
+    df['ATR']    = (df['High'] - df['Low']).rolling(14).mean()
+    df.dropna(inplace=True)
+
+    config = BacktestConfig(
+        initial_capital   = 100_000,
+        commission_pct    = 0.001,
+        slippage_pct      = 0.0005,
+        position_size_pct = 0.95,
+        stop_loss_pct     = 0.03,
+        take_profit_pct   = 0.06,
+        trailing_stop_pct = 0.025,
+        allow_shorting    = True,
+        use_atr_sizing    = False,
+        risk_free_rate    = 0.06,
+    )
+
+    full = run_full_analysis(
+        df            = df,
+        signal_func   = macd_crossover_signal,
+        config        = config,
+        run_walk_forward = True,
+        run_monte_carlo  = True,
+        param_grid    = None,   # pass dict to enable WFO grid search
+    )
