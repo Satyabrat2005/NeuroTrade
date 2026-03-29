@@ -324,3 +324,20 @@ class Backtester:
             size = PositionSizer.atr_based(self.capital, exec_price, atr, cfg.atr_risk_pct)
         else:
             size = PositionSizer.fixed_fractional(self.capital, exec_price, cfg.position_size_pct)
+
+        trade_value = size * exec_price
+        commission = self._apply_commission(trade_value)
+        self.capital -= commission
+
+        self.position = Position(
+            side=side,
+            size=size,
+            entry_price=exec_price,
+            entry_date=date,
+            stop_loss=exec_price * (1 - cfg.stop_loss_pct) if cfg.stop_loss_pct and side == PositionSide.LONG
+                      else exec_price * (1 + cfg.stop_loss_pct) if cfg.stop_loss_pct else None,
+            take_profit=exec_price * (1 + cfg.take_profit_pct) if cfg.take_profit_pct and side == PositionSide.LONG
+                        else exec_price * (1 - cfg.take_profit_pct) if cfg.take_profit_pct else None,
+            trailing_stop_pct=cfg.trailing_stop_pct,
+        )
+        self.position._commission_paid = commission
