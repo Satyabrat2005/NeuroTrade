@@ -963,3 +963,15 @@ def macd_crossover_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
     elif macd_prev >= sig_prev and macd_cur < sig_cur:
         return PositionSide.SHORT
     return None
+
+def sma_trend_signal(df: pd.DataFrame, i: int,
+                     fast: int = 20, slow: int = 50) -> Optional[PositionSide]:
+    fast_col = f'SMA_{fast}'
+    slow_col = f'SMA_{slow}'
+    if i < 1 or fast_col not in df.columns or slow_col not in df.columns:
+        return None
+    if df[fast_col].iloc[i] > df[slow_col].iloc[i]:
+        return PositionSide.LONG
+    elif df[fast_col].iloc[i] < df[slow_col].iloc[i]:
+        return PositionSide.SHORT
+    return None
