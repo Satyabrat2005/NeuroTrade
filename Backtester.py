@@ -718,3 +718,17 @@ class MonteCarloSimulator:
     Bootstrap Monte Carlo simulation on trade sequence.
     Answers: "Is this edge statistically significant?"
     """
+    def __init__(self, n_simulations: int = 10_000, confidence: float = 0.95):
+        self.n_sims = n_simulations
+        self.confidence = confidence
+
+    def run(self, trades: list, initial_capital: float = 100_000) -> dict:
+        if not trades:
+            return {}
+
+        pnls = np.array([t.pnl for t in trades])
+        n = len(pnls)
+
+        sim_finals = []
+        sim_maxdds = []
+        sim_sharpes = []
