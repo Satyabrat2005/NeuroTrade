@@ -285,3 +285,20 @@ class PositionSizer:
             return 0
         scale = target_vol / realized_vol
         return (capital * scale) / price
+
+# CORE BACKTESTING ENGINE
+
+class Backtester:
+
+    def __init__(self, config: BacktestConfig = None):
+        self.config = config or BacktestConfig()
+        self.reset()
+
+    def reset(self):
+        self.capital = self.config.initial_capital
+        self.equity_curve = []
+        self.trades: list[Trade] = []
+        self.position = Position()
+        self.daily_returns = []
+        self.regimes = []
+        self._aborted = False
