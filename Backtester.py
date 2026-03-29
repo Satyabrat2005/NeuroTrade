@@ -492,3 +492,9 @@ class Backtester:
             portfolio_value = self.capital
             if self.position.side != PositionSide.FLAT:
                 portfolio_value += self.position.unrealized_pnl
+
+            self.equity_curve.append({"date": date, "equity": portfolio_value, "regime": regime})
+
+            ret = (portfolio_value - prev_equity) / prev_equity if prev_equity != 0 else 0
+            self.daily_returns.append(ret)
+            prev_equity = portfolio_value
