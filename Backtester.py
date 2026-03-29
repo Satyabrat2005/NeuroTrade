@@ -1070,3 +1070,9 @@ if __name__ == "__main__":
     df['BB_Lower'] = df['SMA_20'] - 2 * df['Close'].rolling(20).std()
     df['ATR']    = (df['High'] - df['Low']).rolling(14).mean()
     df.dropna(inplace=True)
+
+    config = BacktestConfig(
+        initial_capital   = 100_000,
+        commission_pct    = 0.001,
+        slippage_pct      = 0.0005,
+        position_size_pct = 0.95,
