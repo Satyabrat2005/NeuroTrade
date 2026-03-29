@@ -1028,3 +1028,14 @@ def run_full_analysis(df: pd.DataFrame,
         wf_results = wf.run(df, signal_func, param_grid)
 
     ReportPrinter.print_full(results, wf_results, mc_results, bench)
+
+    return {
+        "backtest": results,
+        "benchmark": bench,
+        "monte_carlo": mc_results,
+        "walk_forward": wf_results,
+    }
+
+# EXAMPLE USAGE
+
+
