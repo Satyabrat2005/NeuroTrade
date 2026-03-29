@@ -522,3 +522,14 @@ class Backtester:
         ra = RiskAnalytics
         cfg = self.config
         trades = self.trades
+
+        # Core metrics
+        total_return = (equity_series.iloc[-1] - cfg.initial_capital) / cfg.initial_capital
+        n_days = len(equity_series)
+        ann_return = (1 + total_return) ** (cfg.annualization_factor / n_days) - 1
+
+        # Trade stats
+        winning_trades = [t for t in trades if t.pnl > 0]
+        losing_trades = [t for t in trades if t.pnl <= 0]
+        long_trades = [t for t in trades if t.side == PositionSide.LONG]
+        short_trades = [t for t in trades if t.side == PositionSide.SHORT]
