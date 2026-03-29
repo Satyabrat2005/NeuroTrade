@@ -113,3 +113,15 @@ class RiskAnalytics:
         gains = returns[returns > threshold].sum()
         losses = abs(returns[returns < threshold].sum())
         return gains / losses if losses != 0 else np.inf
+
+    @staticmethod
+    def max_drawdown(returns: pd.Series) -> float:
+        cum = (1 + returns).cumprod()
+        roll_max = cum.cummax()
+        dd = (cum - roll_max) / roll_max
+        return dd.min()
+
+    @staticmethod
+    def drawdown_series(equity: pd.Series) -> pd.Series:
+        roll_max = equity.cummax()
+        return (equity - roll_max) / roll_max
