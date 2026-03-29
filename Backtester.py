@@ -657,3 +657,20 @@ class WalkForwardOptimizer:
 
             if len(train_df) < 50 or len(test_df) < 10:
                 continue
+            # Grid search on train
+            best_score = -np.inf
+            best_params = None
+
+            for params in self._param_combinations(param_grid):
+                bt = Backtester(self.config)
+                try:
+                    res = bt.run(train_df, signal_func, params)
+                    score = res.get(optimize_metric, -np.inf)
+                    if np.isfinite(score) and score > best_score:
+                        best_score = score
+                        best_params = params
+                except Exception:
+                    continue
+
+            if best_params is None:
+                continue
