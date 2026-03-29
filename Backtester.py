@@ -429,3 +429,24 @@ class Backtester:
                 return "take_profit"
 
         return None
+        
+    # MAIN RUN
+    def run(self, df: pd.DataFrame, signal_func: Callable,
+            signal_kwargs: dict = None) -> dict:
+        """
+        Run backtest.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            OHLCV data with indicators pre-computed.
+        signal_func : Callable
+            Function(df, i, **kwargs) -> PositionSide or None
+            Return PositionSide.LONG / SHORT / FLAT or None.
+        signal_kwargs : dict
+            Extra args passed to signal_func.
+
+        Returns
+        -------
+        dict : Full results dictionary.
+        """
