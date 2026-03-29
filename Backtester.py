@@ -556,3 +556,15 @@ class Backtester:
             "total_return_pct": total_return * 100,
             "annualized_return_pct": ann_return * 100,
             "aborted_early": self._aborted,
+
+            # ── Risk-Adjusted Returns ──
+            "sharpe_ratio": ra.sharpe_ratio(returns, cfg.risk_free_rate, cfg.annualization_factor),
+            "sortino_ratio": ra.sortino_ratio(returns, cfg.risk_free_rate, cfg.annualization_factor),
+            "calmar_ratio": ra.calmar_ratio(returns, cfg.annualization_factor),
+            "omega_ratio": ra.omega_ratio(returns),
+
+            # ── Drawdown ──
+            "max_drawdown_pct": ra.max_drawdown(returns) * 100,
+            "max_drawdown_duration_bars": ra.max_drawdown_duration(equity_series),
+            "ulcer_index": ra.ulcer_index(equity_series),
+
