@@ -192,3 +192,28 @@ class RiskAnalytics:
             return 0.0
         rr = avg_win / avg_loss
         return wr - (1 - wr) / rr
+
+    @staticmethod
+    def consecutive_stats(trades: list):
+        wins, losses = [], []
+        cur_w, cur_l = 0, 0
+        for t in trades:
+            if t.pnl > 0:
+                cur_w += 1
+                if cur_l > 0:
+                    losses.append(cur_l)
+                cur_l = 0
+            else:
+                cur_l += 1
+                if cur_w > 0:
+                    wins.append(cur_w)
+                cur_w = 0
+        if cur_w > 0: wins.append(cur_w)
+        if cur_l > 0: losses.append(cur_l)
+        return {
+            "max_consecutive_wins": max(wins) if wins else 0,
+            "max_consecutive_losses": max(losses) if losses else 0,
+            "avg_consecutive_wins": np.mean(wins) if wins else 0,
+            "avg_consecutive_losses": np.mean(losses) if losses else 0,
+        }
+
