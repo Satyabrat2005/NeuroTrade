@@ -1055,3 +1055,18 @@ if __name__ == "__main__":
         "Close":  close,
         "Volume": np.random.randint(100_000, 1_000_000, n),
     }, index=dates)
+
+    # Apply your indicators 
+    # from indicators import add_all_indicators
+    # df = add_all_indicators(df)
+
+    # Manual minimal indicators for demo
+    df['SMA_20'] = df['Close'].rolling(20).mean()
+    df['SMA_50'] = df['Close'].rolling(50).mean()
+    df['RSI']    = 50 + np.random.normal(0, 15, n)   # placeholder
+    df['MACD']         = np.random.normal(0, 2, n)
+    df['MACD_signal']  = np.random.normal(0, 2, n)
+    df['BB_Upper'] = df['SMA_20'] + 2 * df['Close'].rolling(20).std()
+    df['BB_Lower'] = df['SMA_20'] - 2 * df['Close'].rolling(20).std()
+    df['ATR']    = (df['High'] - df['Low']).rolling(14).mean()
+    df.dropna(inplace=True)
