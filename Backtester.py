@@ -568,3 +568,19 @@ class Backtester:
             "max_drawdown_duration_bars": ra.max_drawdown_duration(equity_series),
             "ulcer_index": ra.ulcer_index(equity_series),
 
+            # ── Tail Risk ──
+            "var_95_pct": ra.var(returns, 0.95) * 100,
+            "cvar_95_pct": ra.cvar(returns, 0.95) * 100,
+            "tail_ratio": ra.tail_ratio(returns),
+            "daily_vol_annualized_pct": returns.std() * np.sqrt(cfg.annualization_factor) * 100,
+
+            # ── Trade Statistics ──
+            "total_trades": len(trades),
+            "long_trades": len(long_trades),
+            "short_trades": len(short_trades),
+            "winning_trades": len(winning_trades),
+            "losing_trades": len(losing_trades),
+            "win_rate_pct": ra.win_rate(trades) * 100,
+            "profit_factor": ra.profit_factor(trades),
+            "expectancy_per_trade": ra.expectancy(trades),
+            "kelly_criterion_pct": ra.kelly_criterion(trades) * 100,
