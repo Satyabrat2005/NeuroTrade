@@ -144,3 +144,13 @@ class RiskAnalytics:
     @staticmethod
     def var(returns: pd.Series, confidence: float = 0.95) -> float:
         return np.percentile(returns, (1 - confidence) * 100)
+
+    @staticmethod
+    def cvar(returns: pd.Series, confidence: float = 0.95) -> float:
+        var = RiskAnalytics.var(returns, confidence)
+        return returns[returns <= var].mean()
+
+    @staticmethod
+    def ulcer_index(equity: pd.Series) -> float:
+        dd = RiskAnalytics.drawdown_series(equity)
+        return np.sqrt((dd ** 2).mean())
