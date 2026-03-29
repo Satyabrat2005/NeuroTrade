@@ -63,3 +63,24 @@ class Position:
     bars_held: int = 0
     mae: float = 0.0
     mfe: float = 0.0
+
+@dataclass
+class BacktestConfig:
+    initial_capital: float = 100_000.0
+    commission_pct: float = 0.001          # 0.1% per trade
+    slippage_pct: float = 0.0005          # 0.05% slippage
+    position_size_pct: float = 0.95       # % of capital per trade
+    max_positions: int = 1
+    allow_shorting: bool = True
+    use_atr_sizing: bool = False
+    atr_risk_pct: float = 0.01            # Risk 1% of capital per ATR
+    stop_loss_pct: Optional[float] = None
+    take_profit_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None
+    max_drawdown_abort: float = 0.30      # Abort if DD exceeds 30%
+    risk_free_rate: float = 0.06          # 6% annual (India benchmark)
+    annualization_factor: int = 252
+
+# RISK & PERFORMANCE ANALYTICS ENGINE
+
+class RiskAnalytics:
