@@ -243,3 +243,16 @@ class RegimeDetector:
             if np.isnan(sma200[i]) or np.isnan(atr_ma[i]):
                 regimes.append(MarketRegime.SIDEWAYS.value)
                 continue
+            trending_up = sma50[i] > sma200[i]
+            high_vol = atr[i] > atr_ma[i] * 1.2
+
+            if high_vol:
+                regimes.append(MarketRegime.HIGH_VOL.value)
+            elif trending_up:
+                regimes.append(MarketRegime.BULL.value)
+            elif not trending_up:
+                regimes.append(MarketRegime.BEAR.value)
+            else:
+                regimes.append(MarketRegime.SIDEWAYS.value)
+
+        return pd.Series(regimes, index=df.index)
