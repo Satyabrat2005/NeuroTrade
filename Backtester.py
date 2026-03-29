@@ -341,3 +341,12 @@ class Backtester:
             trailing_stop_pct=cfg.trailing_stop_pct,
         )
         self.position._commission_paid = commission
+
+    def _close_position(self, date, price, reason: str = "signal", regime: str = ""):
+        if self.position.side == PositionSide.FLAT:
+            return None
+
+        side = self.position.side
+        exec_price = self._apply_slippage(
+            price, OrderSide.SELL if side == PositionSide.LONG else OrderSide.BUY
+        )
