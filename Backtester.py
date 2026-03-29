@@ -1088,3 +1088,5 @@ if __name__ == "__main__":
         df            = df,
         signal_func   = macd_crossover_signal,
         config        = config,
+        run_walk_forward = True,
+        run_monte_carlo  = True,
