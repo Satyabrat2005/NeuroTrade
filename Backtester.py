@@ -643,3 +643,17 @@ class WalkForwardOptimizer:
         print(f"\n{'='*60}")
         print(f"  WALK-FORWARD OPTIMIZATION  |  {self.n_splits} folds")
         print(f"{'='*60}")
+
+        for fold in range(self.n_splits):
+            train_end = int(window * (fold + 1) * self.train_ratio) + fold * window
+            test_start = train_end
+            test_end = min(train_end + window, n)
+
+            if test_start >= n:
+                break
+
+            train_df = df.iloc[:train_end]
+            test_df = df.iloc[test_start:test_end]
+
+            if len(train_df) < 50 or len(test_df) < 10:
+                continue
