@@ -747,3 +747,17 @@ class MonteCarloSimulator:
 
         lo = (1 - self.confidence) / 2
         hi = 1 - lo
+
+        return {
+            "n_simulations": self.n_sims,
+            "confidence_level": self.confidence,
+            "final_equity": {
+                "mean": np.mean(sim_finals),
+                "median": np.median(sim_finals),
+                f"p{int(lo*100)}": np.percentile(sim_finals, lo * 100),
+                f"p{int(hi*100)}": np.percentile(sim_finals, hi * 100),
+                "prob_profit": np.mean(np.array(sim_finals) > initial_capital),
+            },
+            "max_drawdown_pct": {
+                "mean": np.mean(sim_maxdds) * 100,
+                "worst_5pct": np.percentile(sim_maxdds, 5) * 100,
