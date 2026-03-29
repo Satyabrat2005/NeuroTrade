@@ -695,3 +695,11 @@ class WalkForwardOptimizer:
             print(f"  Fold {fold+1}: Train Score={best_score:.3f} | "
                   f"OOS Score={oos_res.get(optimize_metric, 0):.3f} | "
                   f"Params={best_params}")
+        summary_df = pd.DataFrame(oos_results)
+        return {
+            "fold_results": summary_df,
+            "avg_oos_score": summary_df["oos_score"].mean() if not summary_df.empty else np.nan,
+            "avg_oos_return_pct": summary_df["oos_return_pct"].mean() if not summary_df.empty else np.nan,
+            "efficiency_ratio": (summary_df["oos_score"] / summary_df["train_score"]).mean() if not summary_df.empty else np.nan,
+            "best_params_per_fold": best_params_per_fold,
+        }
