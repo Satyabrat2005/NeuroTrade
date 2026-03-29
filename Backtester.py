@@ -900,3 +900,14 @@ class ReportPrinter:
         if bench:
             print(f"\n{'BENCHMARK COMPARISON':^65}")
             print(sep)
+            for label, d in [("Strategy", bench["strategy"]), ("Buy & Hold", bench["buy_and_hold"])]:
+                print(f"  {label}")
+                print(f"    Return: {d['total_return_pct']:.2f}%  |  "
+                      f"Sharpe: {d['sharpe']:.3f}  |  "
+                      f"MaxDD: {d['max_drawdown_pct']:.2f}%  |  "
+                      f"Vol: {d['annualized_vol_pct']:.2f}%")
+            print(f"  Alpha (ann.)         : {bench['alpha_annualized_pct']:.2f}%")
+            print(f"  Beta                 : {bench['beta']:.4f}")
+            print(f"  Information Ratio    : {bench['information_ratio']:.4f}")
+            print(f"  Benchmark Corr.      : {bench['correlation_with_benchmark']:.4f}")
+
