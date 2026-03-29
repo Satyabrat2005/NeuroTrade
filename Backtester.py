@@ -450,3 +450,15 @@ class Backtester:
         -------
         dict : Full results dictionary.
         """
+        self.reset()
+        signal_kwargs = signal_kwargs or {}
+        regimes = RegimeDetector.detect(df)
+
+        prev_equity = self.config.initial_capital
+
+        for i in range(len(df)):
+            row = df.iloc[i]
+            date = df.index[i]
+            o, h, l, c = row['Open'], row['High'], row['Low'], row['Close']
+            atr = row.get('ATR', None) if hasattr(row, 'get') else None
+            regime = regimes.iloc[i]
