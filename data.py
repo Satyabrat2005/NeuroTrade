@@ -22,3 +22,12 @@ try:
 except ImportError:
     _FRED_AVAILABLE = False
     print("[data.py] fredapi not installed — pip install fredapi")
+    
+# CONFIG  —  put your API keys here or in .env
+@dataclass
+class APIConfig:
+    """Central store for all API keys and default settings."""
+    # keys 
+    fred_api_key:         str  = os.getenv("FRED_API_KEY", "")
+    alpha_vantage_key:    str  = os.getenv("ALPHA_VANTAGE_KEY", "")
+    polygon_key:          str  = os.getenv("POLYGON_KEY", "")
