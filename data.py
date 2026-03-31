@@ -134,3 +134,15 @@ class OHLCVCleaner:
         if bad_rows.sum() > 0:
             print(f"[OHLCVCleaner] Dropping {bad_rows.sum()} invalid rows for {ticker}")
             df = df[~bad_rows]
+
+        #fix High/Low if OHLC data has them inverted
+        df["High"] = df[["Open", "High", "Low", "Close"]].max(axis=1)
+        df["Low"]  = df[["Open", "High", "Low", "Close"]].min(axis=1)
+
+        #add useful derived columns (lightweight)
+        df["Returns"]     = df["Close"].pct_change()
+        df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
+        df["HL_Spread"]   = (df["High"] - df["Low"]) / df["Close"]
+        df["Ticker"]      = ticker
+
+        return df
