@@ -487,3 +487,11 @@ class AlphaVantageLoader:
         if use_cache:
             _cache_save(df, cache_key)
         return df
+
+    def fetch_forex(self, from_sym: str, to_sym: str) -> pd.DataFrame:
+        data = self._get({
+            "function": "FX_DAILY",
+            "from_symbol": from_sym,
+            "to_symbol": to_sym,
+            "outputsize": "full",
+        })
