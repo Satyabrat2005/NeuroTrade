@@ -318,3 +318,15 @@ class FREDLoader:
             s.to_frame().to_parquet(_cache_path(cache_key))
 
         return s
+
+    def fetch_macro_panel(
+        self,
+        series_ids: list = None,
+        start:      str  = "2000-01-01",
+        end:        str  = CONFIG.default_end,
+        resample:   str  = "D",        # 'D' daily, 'W' weekly, 'M' monthly
+    ) -> pd.DataFrame:
+        """
+        Fetch multiple FRED series → merged + resampled DataFrame.
+        Ready to merge with OHLCV df.
+        """
