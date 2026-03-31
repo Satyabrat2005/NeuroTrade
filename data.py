@@ -234,3 +234,16 @@ class YFinanceLoader:
             return yf.Ticker(ticker).info
         except Exception:
             return {}
+
+# SOURCE 2 — FRED  (macro: rates, CPI, GDP, unemployment, VIX)
+
+
+# Curated series most useful for regime detection + macro features
+FRED_SERIES = {
+    #interest rates 
+    "DFF":     "Fed Funds Rate",
+    "DGS2":    "2Y Treasury Yield",
+    "DGS10":   "10Y Treasury Yield",
+    "DGS30":   "30Y Treasury Yield",
+    "T10Y2Y":  "Yield Curve (10Y-2Y)",
+    "T10YFF":  "10Y Treasury - Fed Funds Spread",
