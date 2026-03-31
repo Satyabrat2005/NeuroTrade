@@ -371,3 +371,13 @@ class FREDLoader:
                 frames[col] = self.fetch_series(fid, start, end)
             except Exception:
                 pass
+        df = pd.DataFrame(frames).resample("D").last().ffill()
+
+        # derived features
+        if "Y2" in df and "Y10" in df:
+            df["Curve_2_10"]  = df["Y10"] - df["Y2"]
+        if "Y3MO" in df.columns or "Y0_25" in df:
+            short = df.get("Y0_25", df.get("Y1", df.get("Y2")))
+            long  = df.get("Y30", df.get("Y10"))
+            if short is not None and long is not None:
+                df["Curve_3M_30Y"] = long - short
