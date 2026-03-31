@@ -104,3 +104,8 @@ class OHLCVCleaner:
             "3. Low": "Low", "5. Volume": "Volume",
         }
         df.rename(columns=rename, inplace=True)
+
+        # prefer Adj Close over Close when both exist
+        if "Adj Close" in df.columns and "Close" in df.columns:
+            df["Close"] = df["Adj Close"]
+            df.drop(columns=["Adj Close"], inplace=True, errors="ignore")
