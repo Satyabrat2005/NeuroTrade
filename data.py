@@ -433,3 +433,14 @@ class AlphaVantageLoader:
 
         func = "TIME_SERIES_DAILY_ADJUSTED" if adjusted else "TIME_SERIES_DAILY"
         data = self._get({"function": func, "symbol": ticker, "outputsize": outputsize})
+
+        key = [k for k in data if "Time Series" in k][0]
+        raw = pd.DataFrame(data[key]).T
+        raw.index = pd.to_datetime(raw.index)
+
+        rename = {
+            "1. open": "Open", "2. high": "High", "3. low": "Low",
+            "5. adjusted close": "Close", "4. close": "Close",
+            "6. volume": "Volume",
+        }
+        raw.rename(columns=rename, inplace=True)
