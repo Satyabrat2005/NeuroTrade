@@ -130,3 +130,7 @@ class OHLCVCleaner:
         # sanity checks
         bad_price = (df[["Open", "High", "Low", "Close"]] <= 0).any(axis=1)
         bad_hl    = df["High"] < df["Low"]
+        bad_rows  = bad_price | bad_hl
+        if bad_rows.sum() > 0:
+            print(f"[OHLCVCleaner] Dropping {bad_rows.sum()} invalid rows for {ticker}")
+            df = df[~bad_rows]
