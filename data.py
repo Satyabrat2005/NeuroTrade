@@ -287,3 +287,9 @@ class FREDLoader:
     def __init__(self, api_key: str = CONFIG.fred_api_key):
         if not _FRED_AVAILABLE:
             raise ImportError("fredapi not installed — pip install fredapi")
+        if not api_key:
+            raise ValueError(
+                "FRED API key missing. Get one free at https://fred.stlouisfed.org/docs/api/api_key.html\n"
+                "Then set: export FRED_API_KEY='your_key_here'"
+            )
+        self.fred = Fred(api_key=api_key)
