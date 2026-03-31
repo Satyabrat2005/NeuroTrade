@@ -330,3 +330,13 @@ class FREDLoader:
         Fetch multiple FRED series → merged + resampled DataFrame.
         Ready to merge with OHLCV df.
         """
+        ids = series_ids or list(FRED_SERIES.keys())
+        frames = []
+
+        for sid in ids:
+            try:
+                s = self.fetch_series(sid, start, end)
+                frames.append(s)
+                print(f"  [FRED] {sid:20s} {FRED_SERIES.get(sid, '')}")
+            except Exception as e:
+                print(f"  [FRED] SKIP {sid}: {e}")
