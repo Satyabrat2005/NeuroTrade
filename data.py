@@ -68,3 +68,17 @@ def _cache_load(key: str, max_age_hours: int = 4) -> Optional[pd.DataFrame]:
         return pd.read_parquet(p)
     except Exception:
         return None
+
+# CORE OHLCV CLEANER  — shared by ALL sources
+class OHLCVCleaner:
+    """
+    Takes any raw DataFrame and returns a clean, standardised OHLCV df
+    ready for indicators.py → add_all_indicators(df).
+
+    Contract:
+      - Index    : pd.DatetimeIndex, tz-naive, sorted ascending
+      - Columns  : Open, High, Low, Close, Volume  (float64)
+      - No NaN rows (forward-fill then drop)
+      - No duplicate timestamps
+      - Prices validated: High >= Low, all > 0
+    """
