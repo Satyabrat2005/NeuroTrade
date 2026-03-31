@@ -187,3 +187,16 @@ class YFinanceLoader:
             if cached is not None:
                 print(f"[YFinance] Loaded {ticker} from cache")
                 return cached
+        print(f"[YFinance] Fetching {ticker}  {start} → {end}  ({interval})")
+        raw = yf.download(
+            ticker, start=start, end=end,
+            interval=interval, auto_adjust=True,
+            progress=False, threads=False,
+        )
+
+        if raw.empty:
+            raise ValueError(f"[YFinance] No data returned for {ticker}")
+
+        # yfinance returns MultiIndex columns when downloading single ticker
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = raw.columns.get_level_values(0)
