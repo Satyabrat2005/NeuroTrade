@@ -207,3 +207,14 @@ class YFinanceLoader:
             _cache_save(df, cache_key)
 
         return df
+
+    @staticmethod
+    def fetch_multiple(
+        tickers:  list,
+        start:    str  = CONFIG.default_start,
+        end:      str  = CONFIG.default_end,
+        interval: str  = CONFIG.default_interval,
+    ) -> dict:
+        """Returns {ticker: DataFrame}."""
+        result = {}
+        for t in tickers:
