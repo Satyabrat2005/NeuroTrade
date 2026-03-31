@@ -158,3 +158,22 @@ class OHLCVCleaner:
             "duplicate_dates": int(df.index.duplicated().sum()),
             "price_range":     f"{df['Close'].min():.2f} – {df['Close'].max():.2f}",
         }
+
+# SOURCE 1 yfinance  (primary equities / crypto / forex / indices)
+
+
+class YFinanceLoader:
+    """
+    Fetches OHLCV via yfinance.
+    Supports stocks, ETFs, crypto (BTC-USD), forex (EURUSD=X),
+    indices (^NSEI, ^GSPC, ^VIX) and futures (GC=F, CL=F).
+    """
+
+    @staticmethod
+    def fetch(
+        ticker:   str,
+        start:    str  = CONFIG.default_start,
+        end:      str  = CONFIG.default_end,
+        interval: str  = CONFIG.default_interval,
+        use_cache: bool = CONFIG.use_cache,
+    ) -> pd.DataFrame:
