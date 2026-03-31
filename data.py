@@ -177,3 +177,13 @@ class YFinanceLoader:
         interval: str  = CONFIG.default_interval,
         use_cache: bool = CONFIG.use_cache,
     ) -> pd.DataFrame:
+
+        if not _YF_AVAILABLE:
+            raise ImportError("yfinance not installed — pip install yfinance")
+
+        cache_key = f"yf_{ticker}_{start}_{end}_{interval}"
+        if use_cache:
+            cached = _cache_load(cache_key)
+            if cached is not None:
+                print(f"[YFinance] Loaded {ticker} from cache")
+                return cached
