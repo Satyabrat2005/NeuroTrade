@@ -411,3 +411,16 @@ class AlphaVantageLoader:
         r = requests.get(self.BASE, params=params, timeout=15)
         r.raise_for_status()
         data = r.json()
+        if "Error Message" in data:
+            raise ValueError(data["Error Message"])
+        if "Note" in data:
+            print(f"[AlphaVantage] Rate limit note: {data['Note']}")
+        return data
+
+    def fetch_daily(
+        self,
+        ticker:    str,
+        outputsize: str = "full",       # "compact" = 100 rows, "full" = 20yr
+        adjusted:  bool = True,
+        use_cache: bool = CONFIG.use_cache,
+    ) -> pd.DataFrame:
