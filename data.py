@@ -90,3 +90,11 @@ class OHLCVCleaner:
 
         # 1. standardise column names
         df.columns = [c.strip().title() for c in df.columns]
+        rename = {
+            "Adj Close": "Close", "Adjusted_Close": "Close",
+            "Adj_Close": "Close", "4. Close": "Close",
+            "1. Open": "Open", "2. High": "High",
+            "3. Low": "Low", "5. Volume": "Volume",
+        }
+        df.rename(columns=rename, inplace=True)
+
