@@ -520,3 +520,14 @@ class AlphaVantageLoader:
             "5. volume":              "Volume",
         }, inplace=True)
         return OHLCVCleaner.clean(raw, f"{symbol}/{market}")
+
+    def fetch_earnings_sentiment(self, ticker: str) -> pd.DataFrame:
+        """
+        Returns news sentiment scored per article.
+        Useful for LLM integration layer.
+        """
+        data = self._get({
+            "function": "NEWS_SENTIMENT",
+            "tickers": ticker,
+            "limit": 200,
+        })
