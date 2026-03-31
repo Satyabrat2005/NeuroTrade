@@ -49,3 +49,15 @@ def _cache_path(key: str) -> str:
     os.makedirs(CONFIG.cache_dir, exist_ok=True)
     safe = key.replace("/", "_").replace(" ", "_").replace(":", "_")
     return os.path.join(CONFIG.cache_dir, f"{safe}.parquet")
+
+def _cache_save(df: pd.DataFrame, key: str):
+    try:
+        df.to_parquet(_cache_path(key))
+    except Exception:
+        pass
+
+
+def _cache_load(key: str, max_age_hours: int = 4) -> Optional[pd.DataFrame]:
+    p = _cache_path(key)
+    if not os.path.exists(p):
+        return None
