@@ -302,3 +302,11 @@ class FREDLoader:
     ) -> pd.Series:
         cache_key = f"fred_{series_id}_{start}_{end}"
         if use_cache:
+            p = _cache_path(cache_key)
+            if os.path.exists(p):
+                try:
+                    return pd.read_parquet(p).squeeze()
+                except Exception:
+                    pass
+
+        time.sleep(CONFIG.request_delay)
