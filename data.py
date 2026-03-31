@@ -398,3 +398,16 @@ class AlphaVantageLoader:
     """
 
     BASE = "https://www.alphavantage.co/query"
+    def __init__(self, api_key: str = CONFIG.alpha_vantage_key):
+        if not api_key:
+            raise ValueError(
+                "Alpha Vantage API key missing. "
+                "Get one free at https://www.alphavantage.co/support/#api-key"
+            )
+        self.key = api_key
+
+    def _get(self, params: dict) -> dict:
+        params["apikey"] = self.key
+        r = requests.get(self.BASE, params=params, timeout=15)
+        r.raise_for_status()
+        data = r.json()
