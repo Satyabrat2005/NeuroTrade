@@ -277,3 +277,276 @@ FRED_SERIES = {
     "VIXCLS":   "CBOE VIX",
     "UMCSENT":  "U Michigan Consumer Sentiment",
 }
+
+class FREDLoader:
+    """
+    Fetches macro time-series from FRED.
+    Returns a single merged DataFrame indexed by date.
+    """
+
+    def __init__(self, api_key: str = CONFIG.fred_api_key):
+        if not _FRED_AVAILABLE:
+            raise ImportError("fredapi not installed — pip install fredapi")
+        if not api_key:
+            raise ValueError(
+                "FRED API key missing. Get one free at https://fred.stlouisfed.org/docs/api/api_key.html\n"
+                "Then set: export FRED_API_KEY='your_key_here'"
+            )
+        self.fred = Fred(api_key=api_key)
+    def fetch_series(
+        self,
+        series_id:  str,
+        start:      str = "2000-01-01",
+        end:        str = CONFIG.default_end,
+        use_cache:  bool = CONFIG.use_cache,
+    ) -> pd.Series:
+        cache_key = f"fred_{series_id}_{start}_{end}"
+        if use_cache:
+            p = _cache_path(cache_key)
+            if os.path.exists(p):
+                try:
+                    return pd.read_parquet(p).squeeze()
+                except Exception:
+                    pass
+
+        time.sleep(CONFIG.request_delay)
+        s = self.fred.get_series(series_id, observation_start=start, observation_end=end)
+        s.index = pd.to_datetime(s.index).tz_localize(None)
+        s.name = series_id
+
+        if use_cache:
+            s.to_frame().to_parquet(_cache_path(cache_key))
+
+        return s
+
+    def fetch_macro_panel(
+        self,
+        series_ids: list = None,
+        start:      str  = "2000-01-01",
+        end:        str  = CONFIG.default_end,
+        resample:   str  = "D",        # 'D' daily, 'W' weekly, 'M' monthly
+    ) -> pd.DataFrame:
+        """
+        Fetch multiple FRED series → merged + resampled DataFrame.
+        Ready to merge with OHLCV df.
+        """
+        ids = series_ids or list(FRED_SERIES.keys())
+        frames = []
+
+        for sid in ids:
+            try:
+                s = self.fetch_series(sid, start, end)
+                frames.append(s)
+                print(f"  [FRED] {sid:20s} {FRED_SERIES.get(sid, '')}")
+            except Exception as e:
+                print(f"  [FRED] SKIP {sid}: {e}")
+
+        if not frames:
+            return pd.DataFrame()
+
+        panel = pd.concat(frames, axis=1)
+        panel = panel.resample(resample).last()
+        panel.ffill(inplace=True)
+        panel.dropna(how="all", inplace=True)
+        return panel
+
+    def fetch_yield_curve(
+        self,
+        start: str = "2000-01-01",
+        end:   str = CONFIG.default_end,
+    ) -> pd.DataFrame:
+        """
+        Returns daily yield curve with derived slope + curvature features.
+        Usefuul for regime detection.
+        """
+        tenors = {
+            "DGS1MO": "Y0_08", "DGS3MO": "Y0_25", "DGS6MO": "Y0_5",
+            "DGS1": "Y1", "DGS2": "Y2", "DGS3": "Y3",
+            "DGS5": "Y5", "DGS7": "Y7", "DGS10": "Y10",
+            "DGS20": "Y20", "DGS30": "Y30",
+        }
+        frames = {}
+        for fid, col in tenors.items():
+            try:
+                frames[col] = self.fetch_series(fid, start, end)
+            except Exception:
+                pass
+        df = pd.DataFrame(frames).resample("D").last().ffill()
+
+        # derived features
+        if "Y2" in df and "Y10" in df:
+            df["Curve_2_10"]  = df["Y10"] - df["Y2"]
+        if "Y3MO" in df.columns or "Y0_25" in df:
+            short = df.get("Y0_25", df.get("Y1", df.get("Y2")))
+            long  = df.get("Y30", df.get("Y10"))
+            if short is not None and long is not None:
+                df["Curve_3M_30Y"] = long - short
+        if "Y2" in df and "Y5" in df and "Y10" in df:
+            df["Curvature"]   = 2 * df["Y5"] - df["Y2"] - df["Y10"]
+        if "Y10" in df:
+            df["Y10_MOM_3M"]  = df["Y10"].diff(63)
+            df["Y10_MOM_1M"]  = df["Y10"].diff(21)
+
+        return df
+
+# SOURCE 3 — Alpha Vantage  (backup + intraday + forex + crypto)
+
+class AlphaVantageLoader:
+    """
+    Alpha Vantage REST API wrapper.
+    Free tier: 25 requests/day.  Premium: 75–1200 requests/min.
+    """
+
+    BASE = "https://www.alphavantage.co/query"
+    def __init__(self, api_key: str = CONFIG.alpha_vantage_key):
+        if not api_key:
+            raise ValueError(
+                "Alpha Vantage API key missing. "
+                "Get one free at https://www.alphavantage.co/support/#api-key"
+            )
+        self.key = api_key
+
+    def _get(self, params: dict) -> dict:
+        params["apikey"] = self.key
+        r = requests.get(self.BASE, params=params, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        if "Error Message" in data:
+            raise ValueError(data["Error Message"])
+        if "Note" in data:
+            print(f"[AlphaVantage] Rate limit note: {data['Note']}")
+        return data
+
+    def fetch_daily(
+        self,
+        ticker:    str,
+        outputsize: str = "full",       # "compact" = 100 rows, "full" = 20yr
+        adjusted:  bool = True,
+        use_cache: bool = CONFIG.use_cache,
+    ) -> pd.DataFrame:
+
+        cache_key = f"av_daily_{ticker}_{outputsize}_{adjusted}"
+        if use_cache:
+            cached = _cache_load(cache_key, max_age_hours=24)
+            if cached is not None:
+                return cached
+
+        func = "TIME_SERIES_DAILY_ADJUSTED" if adjusted else "TIME_SERIES_DAILY"
+        data = self._get({"function": func, "symbol": ticker, "outputsize": outputsize})
+
+        key = [k for k in data if "Time Series" in k][0]
+        raw = pd.DataFrame(data[key]).T
+        raw.index = pd.to_datetime(raw.index)
+
+        rename = {
+            "1. open": "Open", "2. high": "High", "3. low": "Low",
+            "5. adjusted close": "Close", "4. close": "Close",
+            "6. volume": "Volume",
+        }
+        raw.rename(columns=rename, inplace=True)
+
+        df = OHLCVCleaner.clean(raw, ticker)
+        if use_cache:
+            _cache_save(df, cache_key)
+        return df
+
+    def fetch_intraday(
+        self,
+        ticker:   str,
+        interval: str = "5min",       # 1min 5min 15min 30min 60min
+        month:    str = None,         # "2024-01" for historical premium
+        use_cache: bool = CONFIG.use_cache,
+    ) -> pd.DataFrame:
+
+        cache_key = f"av_intra_{ticker}_{interval}_{month or 'live'}"
+        if use_cache:
+            cached = _cache_load(cache_key, max_age_hours=1)
+            if cached is not None:
+                return cached
+
+        params = {
+            "function": "TIME_SERIES_INTRADAY",
+            "symbol": ticker,
+            "interval": interval,
+            "outputsize": "full",
+        }
+        if month:
+            params["month"] = month
+
+        data = self._get(params)
+        key = [k for k in data if "Time Series" in k][0]
+        raw = pd.DataFrame(data[key]).T
+        raw.index = pd.to_datetime(raw.index)
+
+        rename = {
+            "1. open": "Open", "2. high": "High",
+            "3. low": "Low", "4. close": "Close", "5. volume": "Volume",
+        }
+        raw.rename(columns=rename, inplace=True)
+        df = OHLCVCleaner.clean(raw, ticker)
+        if use_cache:
+            _cache_save(df, cache_key)
+        return df
+
+    def fetch_forex(self, from_sym: str, to_sym: str) -> pd.DataFrame:
+        data = self._get({
+            "function": "FX_DAILY",
+            "from_symbol": from_sym,
+            "to_symbol": to_sym,
+            "outputsize": "full",
+        })
+        raw = pd.DataFrame(data["Time Series FX (Daily)"]).T
+        raw.index = pd.to_datetime(raw.index)
+        raw.rename(columns={
+            "1. open": "Open", "2. high": "High",
+            "3. low": "Low", "4. close": "Close",
+        }, inplace=True)
+        raw["Volume"] = 0
+        return OHLCVCleaner.clean(raw, f"{from_sym}/{to_sym}")
+
+    def fetch_crypto(self, symbol: str, market: str = "USD") -> pd.DataFrame:
+        data = self._get({
+            "function": "DIGITAL_CURRENCY_DAILY",
+            "symbol": symbol,
+            "market": market,
+        })
+        raw = pd.DataFrame(data["Time Series (Digital Currency Daily)"]).T
+        raw.index = pd.to_datetime(raw.index)
+        raw.rename(columns={
+            f"1a. open ({market})":   "Open",
+            f"2a. high ({market})":   "High",
+            f"3a. low ({market})":    "Low",
+            f"4a. close ({market})":  "Close",
+            "5. volume":              "Volume",
+        }, inplace=True)
+        return OHLCVCleaner.clean(raw, f"{symbol}/{market}")
+
+    def fetch_earnings_sentiment(self, ticker: str) -> pd.DataFrame:
+        """
+        Returns news sentiment scored per article.
+        Useful for LLM integration layer.
+        """
+        data = self._get({
+            "function": "NEWS_SENTIMENT",
+            "tickers": ticker,
+            "limit": 200,
+        })
+        rows = []
+        for item in data.get("feed", []):
+            ts = pd.to_datetime(item["time_published"], format="%Y%m%dT%H%M%S")
+            for ts_info in item.get("ticker_sentiment", []):
+                if ts_info["ticker"] == ticker:
+                    rows.append({
+                        "date":             ts,
+                        "title":            item["title"],
+                        "source":           item["source"],
+                        "overall_score":    float(item.get("overall_sentiment_score", 0)),
+                        "ticker_score":     float(ts_info.get("ticker_sentiment_score", 0)),
+                        "relevance":        float(ts_info.get("relevance_score", 0)),
+                        "label":            ts_info.get("ticker_sentiment_label", ""),
+                    })
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df.set_index("date", inplace=True)
+            df.sort_index(inplace=True)
+        return df
