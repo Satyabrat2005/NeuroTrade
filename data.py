@@ -531,3 +531,17 @@ class AlphaVantageLoader:
             "tickers": ticker,
             "limit": 200,
         })
+        rows = []
+        for item in data.get("feed", []):
+            ts = pd.to_datetime(item["time_published"], format="%Y%m%dT%H%M%S")
+            for ts_info in item.get("ticker_sentiment", []):
+                if ts_info["ticker"] == ticker:
+                    rows.append({
+                        "date":             ts,
+                        "title":            item["title"],
+                        "source":           item["source"],
+                        "overall_score":    float(item.get("overall_sentiment_score", 0)),
+                        "ticker_score":     float(ts_info.get("ticker_sentiment_score", 0)),
+                        "relevance":        float(ts_info.get("relevance_score", 0)),
+                        "label":            ts_info.get("ticker_sentiment_label", ""),
+                    })
