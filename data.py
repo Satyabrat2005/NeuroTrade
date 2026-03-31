@@ -545,3 +545,8 @@ class AlphaVantageLoader:
                         "relevance":        float(ts_info.get("relevance_score", 0)),
                         "label":            ts_info.get("ticker_sentiment_label", ""),
                     })
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df.set_index("date", inplace=True)
+            df.sort_index(inplace=True)
+        return df
