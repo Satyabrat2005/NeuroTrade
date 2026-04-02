@@ -550,3 +550,14 @@ class AlphaVantageLoader:
             df.set_index("date", inplace=True)
             df.sort_index(inplace=True)
         return df
+
+# SOURCE 4 — Polymarket  (prediction market odds — hackathon track 1)
+
+class PolymarketLoader:
+    """
+    Fetches live market probabilities from Polymarket (public CLOB API).
+    No API key required for read access.
+    """
+
+    BASE = "https://clob.polymarket.com"
+
