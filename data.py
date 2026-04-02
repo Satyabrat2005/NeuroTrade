@@ -584,3 +584,12 @@ class PolymarketLoader:
         except Exception as e:
             print(f"[Polymarket] Error: {e}")
             return pd.DataFrame()
+
+    def get_orderbook(self, token_id: str) -> dict:
+        """Returns best bid/ask for a binary outcome token."""
+        try:
+            r = requests.get(
+                f"{self.BASE}/book",
+                params={"token_id": token_id},
+                timeout=10
+            )
