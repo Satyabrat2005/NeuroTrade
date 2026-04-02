@@ -571,3 +571,181 @@ class PolymarketLoader:
             data = r.json().get("data", [])
             rows = []
             for m in data:
+                rows.append({
+                    "market_id":    m.get("condition_id", ""),
+                    "question":     m.get("question", ""),
+                    "end_date":     m.get("end_date_iso", ""),
+                    "volume_usd":   float(m.get("volume", 0)),
+                    "liquidity":    float(m.get("liquidity", 0)),
+                    "yes_price":    None,
+                    "no_price":     None,
+                })
+            return pd.DataFrame(rows)
+        except Exception as e:
+            print(f"[Polymarket] Error: {e}")
+            return pd.DataFrame()
+
+    def get_orderbook(self, token_id: str) -> dict:
+        """Returns best bid/ask for a binary outcome token."""
+        try:
+            r = requests.get(
+                f"{self.BASE}/book",
+                params={"token_id": token_id},
+                timeout=10
+            )
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            print(f"[Polymarket] Orderbook error: {e}")
+            return {}
+
+    def get_price_history(self, market_id: str, interval: str = "1d") -> pd.DataFrame:
+        """Returns price history for a market outcome (YES token)."""
+        try:
+            r = requests.get(
+                f"{self.BASE}/prices-history",
+                params={"market": market_id, "interval": interval, "fidelity": 60},
+                timeout=10
+            )
+            r.raise_for_status()
+            history = r.json().get("history", [])
+            df = pd.DataFrame(history)
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["t"], unit="s")
+                df.rename(columns={"p": "yes_prob"}, inplace=True)
+                df.set_index("date", inplace=True)
+                df = df[["yes_prob"]]
+            return df
+        except Exception as e:
+            print(f"[Polymarket] History error: {e}")
+            return pd.DataFrame()
+
+# SOURCE 5 — Kalshi  (regulated US prediction market)
+
+class KalshiLoader:
+    """
+    Fetches market data from Kalshi (regulated CFTC exchange).
+    Public endpoints need no auth.  Trading requires OAuth.
+    """
+
+    BASE = "https://trading-api.kalshi.com/trade-api/v2"
+
+    def get_markets(
+        self,
+        limit:    int = 100,
+        status:   str = "open",        # open, closed, settled
+        category: str = None,          # "economics", "politics", "financials"
+    ) -> pd.DataFrame:
+        params = {"limit": limit, "status": status}
+        if category:
+            params["series_ticker"] = category
+        try:
+            r = requests.get(f"{self.BASE}/markets", params=params, timeout=10)
+            r.raise_for_status()
+            markets = r.json().get("markets", [])
+            rows = []
+            for m in markets:
+                rows.append({
+                    "ticker":       m.get("ticker", ""),
+                    "title":        m.get("title", ""),
+                    "category":     m.get("category", ""),
+                    "close_time":   m.get("close_time", ""),
+                    "yes_bid":      m.get("yes_bid", 0) / 100,
+                    "yes_ask":      m.get("yes_ask", 0) / 100,
+                    "no_bid":       m.get("no_bid", 0) / 100,
+                    "no_ask":       m.get("no_ask", 0) / 100,
+                    "implied_prob": (m.get("yes_bid", 0) + m.get("yes_ask", 0)) / 200,
+                    "volume":       m.get("volume", 0),
+                    "open_interest": m.get("open_interest", 0),
+                })
+            return pd.DataFrame(rows)
+        except Exception as e:
+            print(f"[Kalshi] Error: {e}")
+            return pd.DataFrame()
+
+    def get_market_history(self, ticker: str) -> pd.DataFrame:
+        try:
+            r = requests.get(
+                f"{self.BASE}/markets/{ticker}/history",
+                timeout=10
+            )
+            r.raise_for_status()
+            history = r.json().get("history", [])
+            df = pd.DataFrame(history)
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["ts"])
+                df.set_index("date", inplace=True)
+                for col in ["yes_bid", "yes_ask", "no_bid", "no_ask"]:
+                    if col in df:
+                        df[col] = df[col] / 100
+                df["implied_prob"] = (df.get("yes_bid", 0) + df.get("yes_ask", 0)) / 2
+            return df
+        except Exception as e:
+            print(f"[Kalshi] History error: {e}")
+            return pd.DataFrame()
+
+# MACRO FEATURE BUILDER  — merges price + macro into one df
+
+class MacroFeatureBuilder:
+    """
+    Merges OHLCV price data with FRED macro series.
+    Adds derived macro features useful for regime detection.
+    Output df is ready for indicators.py → add_all_indicators()
+    """
+    @staticmethod
+    def merge(
+        price_df:  pd.DataFrame,
+        macro_df:  pd.DataFrame,
+        method:    str = "ffill",       # how to align lower-freq macro to daily
+    ) -> pd.DataFrame:
+        """
+        Left-join macro onto price by date.
+        macro_df dates that don't align to trading days are forward-filled.
+        """
+        if macro_df.empty:
+            return price_df
+
+        aligned = macro_df.reindex(price_df.index, method=method)
+        return pd.concat([price_df, aligned], axis=1)
+
+    @staticmethod
+    def add_macro_features(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Adds derived macro features assuming standard FRED columns are present.
+        Call AFTER merge().
+        """
+        # Yield curve slope (2-10)
+        if "DGS10" in df and "DGS2" in df:
+            df["Yield_Curve"]     = df["DGS10"] - df["DGS2"]
+            df["Curve_Inverted"]  = (df["Yield_Curve"] < 0).astype(int)
+            df["Curve_MOM_1M"]    = df["Yield_Curve"].diff(21)
+
+        # ── Real rate ─────────────────────────────────────────────────
+        if "DGS10" in df and "T10YIE" in df:
+            df["Real_Rate_10Y"]   = df["DGS10"] - df["T10YIE"]
+
+        # ── Credit stress ─────────────────────────────────────────────
+        if "BAMLH0A0HYM2" in df:
+            df["HY_Spread_MOM"]   = df["BAMLH0A0HYM2"].diff(21)
+            df["HY_Spread_Z"]     = (
+                (df["BAMLH0A0HYM2"] - df["BAMLH0A0HYM2"].rolling(252).mean())
+                / df["BAMLH0A0HYM2"].rolling(252).std()
+            )
+
+        # ── Inflation momentum ────────────────────────────────────────
+        if "CPIAUCSL" in df:
+            df["CPI_YOY"]         = df["CPIAUCSL"].pct_change(252) * 100
+            df["CPI_MOM"]         = df["CPIAUCSL"].pct_change(21) * 100
+
+        # ── VIX regime ────────────────────────────────────────────────
+        if "VIXCLS" in df:
+            df["VIX_MA30"]        = df["VIXCLS"].rolling(30).mean()
+            df["VIX_Regime"]      = pd.cut(
+                df["VIXCLS"],
+                bins=[0, 15, 20, 30, 40, 999],
+                labels=["calm", "normal", "elevated", "fear", "panic"]
+            )
+
+        return df
+
+# MASTER DataPipeline  — one call to rule them all
