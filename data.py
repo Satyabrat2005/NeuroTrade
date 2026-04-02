@@ -658,3 +658,7 @@ class KalshiLoader:
                     "volume":       m.get("volume", 0),
                     "open_interest": m.get("open_interest", 0),
                 })
+            return pd.DataFrame(rows)
+        except Exception as e:
+            print(f"[Kalshi] Error: {e}")
+            return pd.DataFrame()
