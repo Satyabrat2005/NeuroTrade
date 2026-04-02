@@ -629,3 +629,14 @@ class KalshiLoader:
     """
 
     BASE = "https://trading-api.kalshi.com/trade-api/v2"
+
+    def get_markets(
+        self,
+        limit:    int = 100,
+        status:   str = "open",        # open, closed, settled
+        category: str = None,          # "economics", "politics", "financials"
+    ) -> pd.DataFrame:
+        params = {"limit": limit, "status": status}
+        if category:
+            params["series_ticker"] = category
+        try:
