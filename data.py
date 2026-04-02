@@ -683,3 +683,12 @@ class KalshiLoader:
         except Exception as e:
             print(f"[Kalshi] History error: {e}")
             return pd.DataFrame()
+
+# MACRO FEATURE BUILDER  — merges price + macro into one df
+
+class MacroFeatureBuilder:
+    """
+    Merges OHLCV price data with FRED macro series.
+    Adds derived macro features useful for regime detection.
+    Output df is ready for indicators.py → add_all_indicators()
+    """
