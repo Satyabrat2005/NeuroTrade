@@ -673,3 +673,13 @@ class KalshiLoader:
             history = r.json().get("history", [])
             df = pd.DataFrame(history)
             if not df.empty:
+                df["date"] = pd.to_datetime(df["ts"])
+                df.set_index("date", inplace=True)
+                for col in ["yes_bid", "yes_ask", "no_bid", "no_ask"]:
+                    if col in df:
+                        df[col] = df[col] / 100
+                df["implied_prob"] = (df.get("yes_bid", 0) + df.get("yes_ask", 0)) / 2
+            return df
+        except Exception as e:
+            print(f"[Kalshi] History error: {e}")
+            return pd.DataFrame()
