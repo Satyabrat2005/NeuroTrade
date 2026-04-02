@@ -640,3 +640,21 @@ class KalshiLoader:
         if category:
             params["series_ticker"] = category
         try:
+            r = requests.get(f"{self.BASE}/markets", params=params, timeout=10)
+            r.raise_for_status()
+            markets = r.json().get("markets", [])
+            rows = []
+            for m in markets:
+                rows.append({
+                    "ticker":       m.get("ticker", ""),
+                    "title":        m.get("title", ""),
+                    "category":     m.get("category", ""),
+                    "close_time":   m.get("close_time", ""),
+                    "yes_bid":      m.get("yes_bid", 0) / 100,
+                    "yes_ask":      m.get("yes_ask", 0) / 100,
+                    "no_bid":       m.get("no_bid", 0) / 100,
+                    "no_ask":       m.get("no_ask", 0) / 100,
+                    "implied_prob": (m.get("yes_bid", 0) + m.get("yes_ask", 0)) / 200,
+                    "volume":       m.get("volume", 0),
+                    "open_interest": m.get("open_interest", 0),
+                })
