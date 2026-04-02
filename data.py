@@ -571,3 +571,12 @@ class PolymarketLoader:
             data = r.json().get("data", [])
             rows = []
             for m in data:
+                rows.append({
+                    "market_id":    m.get("condition_id", ""),
+                    "question":     m.get("question", ""),
+                    "end_date":     m.get("end_date_iso", ""),
+                    "volume_usd":   float(m.get("volume", 0)),
+                    "liquidity":    float(m.get("liquidity", 0)),
+                    "yes_price":    None,
+                    "no_price":     None,
+                })
