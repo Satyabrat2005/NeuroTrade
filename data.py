@@ -561,3 +561,13 @@ class PolymarketLoader:
 
     BASE = "https://clob.polymarket.com"
 
+    def get_markets(self, limit: int = 50, active_only: bool = True) -> pd.DataFrame:
+        params = {"limit": limit}
+        if active_only:
+            params["active"] = "true"
+        try:
+            r = requests.get(f"{self.BASE}/markets", params=params, timeout=10)
+            r.raise_for_status()
+            data = r.json().get("data", [])
+            rows = []
+            for m in data:
