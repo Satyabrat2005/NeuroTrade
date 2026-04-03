@@ -20,7 +20,7 @@ try:
 except ImportError:
     CUSTOM_UTILS = False
 
-# ══════════════════════════════════════════════════════════════════════════════
+# 
 #  INDICATOR ENGINE  (self-contained fallback — mirrors utils.py contract)
 # ══════════════════════════════════════════════════════════════════════════════
 
