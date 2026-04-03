@@ -856,3 +856,8 @@ class DataPipeline:
         source: "kalshi" | "polymarket"
         """
         if source == "kalshi":
+            return KalshiLoader().get_markets()
+        elif source == "polymarket":
+            return PolymarketLoader().get_markets()
+        else:
+            raise ValueError(f"Unknown source: {source}")
