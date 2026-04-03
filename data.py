@@ -823,3 +823,11 @@ class DataPipeline:
                         "CPIAUCSL", "VIXCLS", "UNRATE",
                         "BAMLH0A0HYM2", "T10YIE",
                     ]
+                    print(f"\n  Fetching {len(series)} FRED series…")
+                    macro = fl.fetch_macro_panel(series, start, end)
+                    df = MacroFeatureBuilder.merge(df, macro)
+                    df = MacroFeatureBuilder.add_macro_features(df)
+                    print(f"  Macro columns added: {macro.shape[1]}")
+                except Exception as e:
+                    print(f"  [FRED] Skipped: {e}")
+            else:
