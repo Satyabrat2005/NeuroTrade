@@ -971,3 +971,16 @@ if __name__ == "__main__":
     print("\n[3] Running backtest…")
     try:
         from backtester import (
+        Backtester, BacktestConfig,
+            macd_crossover_signal, run_full_analysis
+        )
+        df.dropna(inplace=True)
+        config = BacktestConfig(
+            initial_capital   = 100_000,
+            commission_pct    = 0.001,
+            slippage_pct      = 0.0005,
+            stop_loss_pct     = 0.03,
+            take_profit_pct   = 0.06,
+            trailing_stop_pct = 0.025,
+            risk_free_rate   = 0.06, 
+        )
