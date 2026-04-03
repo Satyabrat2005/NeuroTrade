@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings("ignore")
 
-# ── Try importing custom utils, fall back to built-in ──────────────────────────
+# ── Try importing custom utils, fall back to built-in 
 try:
     from utils import add_all_indicators
     CUSTOM_UTILS = True
