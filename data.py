@@ -831,3 +831,11 @@ class DataPipeline:
                 except Exception as e:
                     print(f"  [FRED] Skipped: {e}")
             else:
+                if not key:
+                    print("  [FRED] No API key — skipping macro. Set FRED_API_KEY env var.")
+                if not _FRED_AVAILABLE:
+                    print("  [FRED] fredapi not installed — pip install fredapi")
+
+        print(f"\n  Final df shape: {df.shape}")
+        print(f"  Columns: {list(df.columns)}\n")
+        return df
