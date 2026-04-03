@@ -803,3 +803,14 @@ class DataPipeline:
         Returns OHLCV + macro features merged into one df.
         Pass directly to add_all_indicators() then Backtester.run().
         """
+        print(f"\n{'='*55}")
+        print(f"  DataPipeline.get_full({ticker})")
+        print(f"  Period: {start} → {end}")
+        print(f"{'='*55}")
+
+        # 1. price data
+        df = YFinanceLoader.fetch(ticker, start, end)
+        print(f"  Price rows loaded: {len(df)}")
+
+        # 2. macro overlay
+        if include_macro:
