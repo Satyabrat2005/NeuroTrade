@@ -993,3 +993,10 @@ if __name__ == "__main__":
         )
     except ImportError:
         print("  backtester.py not found — place in same folder")
+
+    # Fetch real data (requires yfinance) 
+    print("\n[4] Real data fetch example (requires yfinance):")
+    print("    df = DataPipeline.get_ohlcv('RELIANCE.NS', start='2020-01-01')")
+    print("    df = DataPipeline.get_full('AAPL', include_macro=True)")
+    print("    markets = DataPipeline.get_prediction_markets('kalshi')")
+    print("\nDone.")
