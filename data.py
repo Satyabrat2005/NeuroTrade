@@ -839,3 +839,12 @@ class DataPipeline:
         print(f"\n  Final df shape: {df.shape}")
         print(f"  Columns: {list(df.columns)}\n")
         return df
+
+    @staticmethod
+    def get_portfolio(
+        tickers: list,
+        start:   str = CONFIG.default_start,
+        end:     str = CONFIG.default_end,
+    ) -> dict:
+        """Returns {ticker: clean_df} for multi-asset backtesting."""
+        return YFinanceLoader.fetch_multiple(tickers, start, end)
