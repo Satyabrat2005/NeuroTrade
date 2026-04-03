@@ -22,7 +22,7 @@ except ImportError:
 
 # 
 #  INDICATOR ENGINE  (self-contained fallback — mirrors utils.py contract)
-# ══════════════════════════════════════════════════════════════════════════════
+# 
 
 def compute_sma(series: pd.Series, period: int) -> pd.Series:
     return series.rolling(window=period).mean()
