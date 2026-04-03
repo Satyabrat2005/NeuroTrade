@@ -848,3 +848,11 @@ class DataPipeline:
     ) -> dict:
         """Returns {ticker: clean_df} for multi-asset backtesting."""
         return YFinanceLoader.fetch_multiple(tickers, start, end)
+
+    @staticmethod
+    def get_prediction_markets(source: str = "kalshi") -> pd.DataFrame:
+        """
+        Returns live prediction market odds.
+        source: "kalshi" | "polymarket"
+        """
+        if source == "kalshi":
