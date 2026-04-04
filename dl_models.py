@@ -41,3 +41,20 @@ class ModelType(Enum):
 @dataclass
 class DLConfig:
     """Central configuration for all deep-learning models."""
+    # Data 
+    seq_len:          int   = 60          # lookback window (bars)
+    forecast_horizon: int   = 5           # how many bars ahead to predict
+    target:           str   = "returns"   # "returns" | "close" | "log_returns"
+    feature_set:      str   = "curated"   # "curated" | "full"
+    train_ratio:      float = 0.70
+    val_ratio:        float = 0.15        # test = 1 - train - val
+
+    #Training 
+    batch_size:       int   = 64
+    epochs:           int   = 100
+    lr:               float = 1e-3
+    weight_decay:     float = 1e-4
+    patience:         int   = 15          # early stopping
+    grad_clip:        float = 1.0
+    dropout:          float = 0.2
+    model_dir:        str   = "./models"
