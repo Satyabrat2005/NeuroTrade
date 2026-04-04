@@ -17,3 +17,8 @@ try:
     from torch.optim import AdamW
     from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
     _TORCH = True
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+except ImportError:
+    _TORCH = False
+    DEVICE = None
+    print("[dl_models] PyTorch not found — pip install torch")
