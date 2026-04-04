@@ -7,3 +7,13 @@ import pandas as pd
 from typing import Optional, Tuple, Dict, List, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+warnings.filterwarnings("ignore")
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import Dataset, DataLoader
+    from torch.optim import AdamW
+    from torch.optim.lr_scheduler import OneCycleLR, CosineAnnealingLR
+    _TORCH = True
