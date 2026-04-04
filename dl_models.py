@@ -58,3 +58,19 @@ class DLConfig:
     grad_clip:        float = 1.0
     dropout:          float = 0.2
     model_dir:        str   = "./models"
+
+    # LSTM 
+    lstm_hidden:      int   = 128
+    lstm_layers:      int   = 2
+    lstm_bidir:       bool  = True
+
+    #TCN 
+    tcn_channels:     List[int] = field(default_factory=lambda: [64, 128, 128, 64])
+    tcn_kernel:       int   = 3
+    tcn_dilations:    List[int] = field(default_factory=lambda: [1, 2, 4, 8, 16])
+
+    # TFT 
+    tft_d_model:      int   = 64
+    tft_n_heads:      int   = 4
+    tft_n_layers:     int   = 2
+    tft_quantiles:    List[float] = field(default_factory=lambda: [0.1, 0.5, 0.9])
