@@ -29,3 +29,15 @@ try:
 except ImportError:
     _SKL = False
     print("[dl_models] scikit-learn not found — pip install scikit-learn")
+
+# CONFIG
+
+class ModelType(Enum):
+    LSTM      = "lstm"
+    TCN       = "tcn"
+    TFT       = "tft"
+    ENSEMBLE  = "ensemble"
+
+@dataclass
+class DLConfig:
+    """Central configuration for all deep-learning models."""
