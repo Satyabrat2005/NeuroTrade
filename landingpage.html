@@ -958,7 +958,7 @@ function tryNow(e) {
   e.preventDefault();
   const btn = e.currentTarget;
   const orig = btn.innerHTML;
-  btn.innerHTML = '✅ &nbsp;Launching...';
+  btn.innerHTML = ' &nbsp;Launching...';
   btn.style.pointerEvents = 'none';
   setTimeout(() => { btn.innerHTML = orig; btn.style.pointerEvents = ''; }, 2000);
 }
