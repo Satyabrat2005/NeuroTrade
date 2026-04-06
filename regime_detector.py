@@ -43,3 +43,26 @@ DEFAULT_BACKEND: str = "kmeans"  # or "hmm"
 # KMeans default config
 KMEANS_N_CLUSTERS: int = 3
 RANDOM_STATE: int = 42
+# Helper utilities
+
+
+def _validate_dataframe(df: pd.DataFrame) -> None:
+    """
+    Validate that *df* contains all required feature columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input feature DataFrame produced by indicators.py.
+
+    Raises
+    ------
+    ValueError
+        If any required column is missing.
+    """
+    missing = set(REQUIRED_FEATURES) - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Input DataFrame is missing required columns: {missing}. "
+            f"Expected columns: {REQUIRED_FEATURES}"
+        )
