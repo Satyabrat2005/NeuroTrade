@@ -1,3 +1,4 @@
+
 import os
 import time
 import warnings
@@ -9,6 +10,8 @@ from typing import Optional, Union
 from dataclasses import dataclass, field
 
 warnings.filterwarnings("ignore")
+
+# ── optional heavy deps (graceful fallback if not installed) ──────────
 try:
     import yfinance as yf
     _YF_AVAILABLE = True
@@ -22,17 +25,21 @@ try:
 except ImportError:
     _FRED_AVAILABLE = False
     print("[data.py] fredapi not installed — pip install fredapi")
-    
+
+
+# ══════════════════════════════════════════════════════════════════════
 # CONFIG  —  put your API keys here or in .env
+# ══════════════════════════════════════════════════════════════════════
+
 @dataclass
 class APIConfig:
     """Central store for all API keys and default settings."""
-    # keys 
-    fred_api_key:         str  = os.getenv("FRED_API_KEY", "")
-    alpha_vantage_key:    str  = os.getenv("ALPHA_VANTAGE_KEY", "")
-    polygon_key:          str  = os.getenv("POLYGON_KEY", "")
+    # ── keys ──────────────────────────────────────────────────────────
+    fred_api_key:         str  = os.getenv("FRED_API_KEY", "13764e0aafcb6799faae047a5f291731")
+    alpha_vantage_key:    str  = os.getenv("ALPHA_VANTAGE_KEY", "JB95ETWHJRT5AP7I")
+    polygon_key:          str  = os.getenv("POLYGON_KEY", "019d596d-0591-7e87-bb0b-71ff0964d9b0")
 
-# defaults 
+    # ── defaults ──────────────────────────────────────────────────────
     default_ticker:       str  = "AAPL"
     default_start:        str  = "2018-01-01"
     default_end:          str  = datetime.today().strftime("%Y-%m-%d")
@@ -44,11 +51,16 @@ class APIConfig:
 
 CONFIG = APIConfig()
 
+
+# ══════════════════════════════════════════════════════════════════════
 # CACHE HELPERS
+# ══════════════════════════════════════════════════════════════════════
+
 def _cache_path(key: str) -> str:
     os.makedirs(CONFIG.cache_dir, exist_ok=True)
     safe = key.replace("/", "_").replace(" ", "_").replace(":", "_")
     return os.path.join(CONFIG.cache_dir, f"{safe}.parquet")
+
 
 def _cache_save(df: pd.DataFrame, key: str):
     try:
@@ -69,7 +81,11 @@ def _cache_load(key: str, max_age_hours: int = 4) -> Optional[pd.DataFrame]:
     except Exception:
         return None
 
+
+# ══════════════════════════════════════════════════════════════════════
 # CORE OHLCV CLEANER  — shared by ALL sources
+# ══════════════════════════════════════════════════════════════════════
+
 class OHLCVCleaner:
     """
     Takes any raw DataFrame and returns a clean, standardised OHLCV df
@@ -82,21 +98,15 @@ class OHLCVCleaner:
       - No duplicate timestamps
       - Prices validated: High >= Low, all > 0
     """
+
     REQUIRED = ["Open", "High", "Low", "Close", "Volume"]
 
     @classmethod
     def clean(cls, df: pd.DataFrame, ticker: str = "") -> pd.DataFrame:
         df = df.copy()
 
-        # 1. standardise column names
+        # ── 1. standardise column names ──────────────────────────────
         df.columns = [c.strip().title() for c in df.columns]
-        rename = {
-            "Adj Close": "Close", "Adjusted_Close": "Close",
-            "Adj_Close": "Close", "4. Close": "Close",
-            "1. Open": "Open", "2. High": "High",
-            "3. Low": "Low", "5. Volume": "Volume",
-        }
-        df.rename(columns=rename, inplace=True)
         rename = {
             "Adj Close": "Close", "Adjusted_Close": "Close",
             "Adj_Close": "Close", "4. Close": "Close",
@@ -110,24 +120,24 @@ class OHLCVCleaner:
             df["Close"] = df["Adj Close"]
             df.drop(columns=["Adj Close"], inplace=True, errors="ignore")
 
-        #index → DatetimeIndex
+        # ── 2. index → DatetimeIndex ──────────────────────────────────
         if not isinstance(df.index, pd.DatetimeIndex):
             df.index = pd.to_datetime(df.index, utc=True)
         df.index = df.index.tz_localize(None) if df.index.tz else df.index
         df.sort_index(inplace=True)
         df = df[~df.index.duplicated(keep="last")]
 
-        # keep only OHLCV 
+        # ── 3. keep only OHLCV ───────────────────────────────────────
         missing = [c for c in cls.REQUIRED if c not in df.columns]
         if missing:
             raise ValueError(f"[OHLCVCleaner] Missing columns: {missing}  (ticker={ticker})")
         df = df[cls.REQUIRED].astype(float)
 
-        # fill / drop NaN 
+        # ── 4. fill / drop NaN ───────────────────────────────────────
         df.ffill(inplace=True)
         df.dropna(inplace=True)
 
-        # sanity checks
+        # ── 5. sanity checks ─────────────────────────────────────────
         bad_price = (df[["Open", "High", "Low", "Close"]] <= 0).any(axis=1)
         bad_hl    = df["High"] < df["Low"]
         bad_rows  = bad_price | bad_hl
@@ -135,17 +145,18 @@ class OHLCVCleaner:
             print(f"[OHLCVCleaner] Dropping {bad_rows.sum()} invalid rows for {ticker}")
             df = df[~bad_rows]
 
-        #fix High/Low if OHLC data has them inverted
+        # ── 6. fix High/Low if OHLC data has them inverted ───────────
         df["High"] = df[["Open", "High", "Low", "Close"]].max(axis=1)
         df["Low"]  = df[["Open", "High", "Low", "Close"]].min(axis=1)
 
-        #add useful derived columns (lightweight)
+        # ── 7. add useful derived columns (lightweight) ──────────────
         df["Returns"]     = df["Close"].pct_change()
         df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
         df["HL_Spread"]   = (df["High"] - df["Low"]) / df["Close"]
         df["Ticker"]      = ticker
 
         return df
+
     @classmethod
     def validate(cls, df: pd.DataFrame) -> dict:
         """Return a health report dict — useful for dashboard display."""
@@ -159,8 +170,10 @@ class OHLCVCleaner:
             "price_range":     f"{df['Close'].min():.2f} – {df['Close'].max():.2f}",
         }
 
-# SOURCE 1 yfinance  (primary equities / crypto / forex / indices)
 
+# ══════════════════════════════════════════════════════════════════════
+# SOURCE 1 — yfinance  (primary equities / crypto / forex / indices)
+# ══════════════════════════════════════════════════════════════════════
 
 class YFinanceLoader:
     """
@@ -187,6 +200,7 @@ class YFinanceLoader:
             if cached is not None:
                 print(f"[YFinance] Loaded {ticker} from cache")
                 return cached
+
         print(f"[YFinance] Fetching {ticker}  {start} → {end}  ({interval})")
         raw = yf.download(
             ticker, start=start, end=end,
@@ -235,12 +249,14 @@ class YFinanceLoader:
         except Exception:
             return {}
 
-# SOURCE 2 — FRED  (macro: rates, CPI, GDP, unemployment, VIX)
 
+# ══════════════════════════════════════════════════════════════════════
+# SOURCE 2 — FRED  (macro: rates, CPI, GDP, unemployment, VIX …)
+# ══════════════════════════════════════════════════════════════════════
 
 # Curated series most useful for regime detection + macro features
 FRED_SERIES = {
-    #interest rates 
+    # ── interest rates ─────────────────────────────────────────────
     "DFF":     "Fed Funds Rate",
     "DGS2":    "2Y Treasury Yield",
     "DGS10":   "10Y Treasury Yield",
@@ -248,35 +264,36 @@ FRED_SERIES = {
     "T10Y2Y":  "Yield Curve (10Y-2Y)",
     "T10YFF":  "10Y Treasury - Fed Funds Spread",
 
-    # inflation 
+    # ── inflation ──────────────────────────────────────────────────
     "CPIAUCSL": "CPI (All Urban Consumers)",
     "CPILFESL": "Core CPI (ex Food & Energy)",
     "PCEPI":    "PCE Price Index",
     "T5YIE":    "5Y Breakeven Inflation",
     "T10YIE":   "10Y Breakeven Inflation",
 
-    # growth / activity 
+    # ── growth / activity ──────────────────────────────────────────
     "GDP":      "Nominal GDP",
     "GDPC1":    "Real GDP",
     "INDPRO":   "Industrial Production",
     "RETAILSMNSA": "Retail Sales",
     "HOUST":    "Housing Starts",
 
-    #labour 
+    # ── labour ─────────────────────────────────────────────────────
     "UNRATE":   "Unemployment Rate",
     "PAYEMS":   "Nonfarm Payrolls",
     "ICSA":     "Initial Jobless Claims",
 
-    #credit / liquidity 
+    # ── credit / liquidity ─────────────────────────────────────────
     "BAMLH0A0HYM2": "HY Credit Spread (OAS)",
     "BAMLC0A0CM":   "IG Credit Spread (OAS)",
     "M2SL":         "M2 Money Supply",
     "DPSACBW027SBOG": "Bank Deposits",
 
-    #sentiment / fear 
+    # ── sentiment / fear ───────────────────────────────────────────
     "VIXCLS":   "CBOE VIX",
     "UMCSENT":  "U Michigan Consumer Sentiment",
 }
+
 
 class FREDLoader:
     """
@@ -293,6 +310,7 @@ class FREDLoader:
                 "Then set: export FRED_API_KEY='your_key_here'"
             )
         self.fred = Fred(api_key=api_key)
+
     def fetch_series(
         self,
         series_id:  str,
@@ -357,7 +375,7 @@ class FREDLoader:
     ) -> pd.DataFrame:
         """
         Returns daily yield curve with derived slope + curvature features.
-        Usefuul for regime detection.
+        Useful for regime detection.
         """
         tenors = {
             "DGS1MO": "Y0_08", "DGS3MO": "Y0_25", "DGS6MO": "Y0_5",
@@ -371,6 +389,7 @@ class FREDLoader:
                 frames[col] = self.fetch_series(fid, start, end)
             except Exception:
                 pass
+
         df = pd.DataFrame(frames).resample("D").last().ffill()
 
         # derived features
@@ -389,7 +408,10 @@ class FREDLoader:
 
         return df
 
+
+# ══════════════════════════════════════════════════════════════════════
 # SOURCE 3 — Alpha Vantage  (backup + intraday + forex + crypto)
+# ══════════════════════════════════════════════════════════════════════
 
 class AlphaVantageLoader:
     """
@@ -398,6 +420,7 @@ class AlphaVantageLoader:
     """
 
     BASE = "https://www.alphavantage.co/query"
+
     def __init__(self, api_key: str = CONFIG.alpha_vantage_key):
         if not api_key:
             raise ValueError(
@@ -551,7 +574,10 @@ class AlphaVantageLoader:
             df.sort_index(inplace=True)
         return df
 
+
+# ══════════════════════════════════════════════════════════════════════
 # SOURCE 4 — Polymarket  (prediction market odds — hackathon track 1)
+# ══════════════════════════════════════════════════════════════════════
 
 class PolymarketLoader:
     """
@@ -620,7 +646,10 @@ class PolymarketLoader:
             print(f"[Polymarket] History error: {e}")
             return pd.DataFrame()
 
+
+# ══════════════════════════════════════════════════════════════════════
 # SOURCE 5 — Kalshi  (regulated US prediction market)
+# ══════════════════════════════════════════════════════════════════════
 
 class KalshiLoader:
     """
@@ -684,7 +713,10 @@ class KalshiLoader:
             print(f"[Kalshi] History error: {e}")
             return pd.DataFrame()
 
+
+# ══════════════════════════════════════════════════════════════════════
 # MACRO FEATURE BUILDER  — merges price + macro into one df
+# ══════════════════════════════════════════════════════════════════════
 
 class MacroFeatureBuilder:
     """
@@ -692,6 +724,7 @@ class MacroFeatureBuilder:
     Adds derived macro features useful for regime detection.
     Output df is ready for indicators.py → add_all_indicators()
     """
+
     @staticmethod
     def merge(
         price_df:  pd.DataFrame,
@@ -714,7 +747,7 @@ class MacroFeatureBuilder:
         Adds derived macro features assuming standard FRED columns are present.
         Call AFTER merge().
         """
-        # Yield curve slope (2-10)
+        # ── Yield curve slope (2-10) ──────────────────────────────────
         if "DGS10" in df and "DGS2" in df:
             df["Yield_Curve"]     = df["DGS10"] - df["DGS2"]
             df["Curve_Inverted"]  = (df["Yield_Curve"] < 0).astype(int)
@@ -748,7 +781,10 @@ class MacroFeatureBuilder:
 
         return df
 
+
+# ══════════════════════════════════════════════════════════════════════
 # MASTER DataPipeline  — one call to rule them all
+# ══════════════════════════════════════════════════════════════════════
 
 class DataPipeline:
     """
@@ -772,6 +808,8 @@ class DataPipeline:
         bt = Backtester(BacktestConfig())
         results = bt.run(df, macd_crossover_signal)
     """
+
+    # ── Quick OHLCV ───────────────────────────────────────────────────
     @staticmethod
     def get_ohlcv(
         ticker:   str,
@@ -790,6 +828,7 @@ class DataPipeline:
         else:
             raise ValueError(f"Unknown source: {source}")
 
+    # ── Full pipeline with macro ───────────────────────────────────────
     @staticmethod
     def get_full(
         ticker:         str,
@@ -840,6 +879,7 @@ class DataPipeline:
         print(f"  Columns: {list(df.columns)}\n")
         return df
 
+    # ── Multiple tickers → dict ────────────────────────────────────────
     @staticmethod
     def get_portfolio(
         tickers: list,
@@ -849,6 +889,7 @@ class DataPipeline:
         """Returns {ticker: clean_df} for multi-asset backtesting."""
         return YFinanceLoader.fetch_multiple(tickers, start, end)
 
+    # ── Prediction market data ─────────────────────────────────────────
     @staticmethod
     def get_prediction_markets(source: str = "kalshi") -> pd.DataFrame:
         """
@@ -862,7 +903,7 @@ class DataPipeline:
         else:
             raise ValueError(f"Unknown source: {source}")
 
-# Health check
+    # ── Health check ──────────────────────────────────────────────────
     @staticmethod
     def validate(df: pd.DataFrame) -> None:
         report = OHLCVCleaner.validate(df)
@@ -870,8 +911,11 @@ class DataPipeline:
         for k, v in report.items():
             print(f"  {k:<22}: {v}")
         print("─────────────────────────────────────────────\n")
-        
+
+
+# ══════════════════════════════════════════════════════════════════════
 # SYNTHETIC DATA GENERATOR  — for testing without API keys
+# ══════════════════════════════════════════════════════════════════════
 
 class SyntheticDataGenerator:
     """
@@ -894,7 +938,7 @@ class SyntheticDataGenerator:
         np.random.seed(seed)
         dates = pd.date_range(start_date, periods=n_bars, freq=freq)
 
-        # regime schedule 
+        # ── regime schedule ──────────────────────────────────────────
         regime_len = n_bars // n_regimes
         regimes = []
         regime_params = [
@@ -908,7 +952,7 @@ class SyntheticDataGenerator:
         while len(regimes) < n_bars:
             regimes.append(regime_params[-1])
 
-        # GARCH-like vol clustering 
+        # ── GARCH-like vol clustering ─────────────────────────────────
         vol = np.zeros(n_bars)
         vol[0] = regimes[0]["sigma"]
         alpha, beta = 0.08, 0.88
@@ -918,11 +962,12 @@ class SyntheticDataGenerator:
             vol[t] = np.sqrt(alpha * shock**2 + beta * vol[t-1]**2 + (1-alpha-beta) * base_sigma**2)
             vol[t] = np.clip(vol[t], 0.003, 0.08)
 
+        # ── price path ───────────────────────────────────────────────
         rets = np.array([regimes[t]["mu"] + vol[t] * np.random.standard_t(5)
                          for t in range(n_bars)])
         close = start_price * np.exp(np.cumsum(rets))
 
-        # OHLCV construction 
+        # ── OHLCV construction ────────────────────────────────────────
         spread = vol * close * 0.5
         high   = close + np.abs(np.random.normal(0, spread))
         low    = close - np.abs(np.random.normal(0, spread))
@@ -944,20 +989,23 @@ class SyntheticDataGenerator:
 
         return OHLCVCleaner.clean(df, ticker)
 
+
+# ══════════════════════════════════════════════════════════════════════
 # QUICK-START  — shows the full pipeline end-to-end
+# ══════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     print("\n" + "="*60)
     print("  DATA PIPELINE — QUICK START DEMO")
     print("="*60)
 
-    #Generate synthetic data (no API key needed)
+    # ── 1. Generate synthetic data (no API key needed) ────────────────
     print("\n[1] Generating synthetic OHLCV data…")
     df = SyntheticDataGenerator.generate(n_bars=1000, ticker="DEMO")
     DataPipeline.validate(df)
     print(df.tail(3).to_string())
 
- # Plug into indicators 
+    # ── 2. Plug into indicators ────────────────────────────────────────
     print("\n[2] Adding all technical indicators…")
     try:
         from indicators import add_all_indicators
@@ -967,11 +1015,11 @@ if __name__ == "__main__":
     except ImportError:
         print("  indicators.py not found — add manually or place in same folder")
 
-    # Run backtest
+    # ── 3. Run backtest ────────────────────────────────────────────────
     print("\n[3] Running backtest…")
     try:
         from backtester import (
-        Backtester, BacktestConfig,
+            Backtester, BacktestConfig,
             macd_crossover_signal, run_full_analysis
         )
         df.dropna(inplace=True)
@@ -982,7 +1030,7 @@ if __name__ == "__main__":
             stop_loss_pct     = 0.03,
             take_profit_pct   = 0.06,
             trailing_stop_pct = 0.025,
-            risk_free_rate   = 0.06, 
+            risk_free_rate    = 0.06,
         )
         results = run_full_analysis(
             df             = df,
@@ -994,7 +1042,7 @@ if __name__ == "__main__":
     except ImportError:
         print("  backtester.py not found — place in same folder")
 
-    # Fetch real data (requires yfinance) 
+    # ── 4. Fetch real data (requires yfinance) ─────────────────────────
     print("\n[4] Real data fetch example (requires yfinance):")
     print("    df = DataPipeline.get_ohlcv('RELIANCE.NS', start='2020-01-01')")
     print("    df = DataPipeline.get_full('AAPL', include_macro=True)")
