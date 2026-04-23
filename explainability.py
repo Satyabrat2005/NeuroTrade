@@ -189,7 +189,7 @@ class AttentionMapper:
     def __init__(self):
         self._attention_matrix: Optional[pd.DataFrame] = None
 
-    # ── from_shap ────────────────────────────────────────────────────────
+    # ── from_shap 
     def from_shap(
         self,
         model,
