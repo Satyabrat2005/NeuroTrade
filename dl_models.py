@@ -541,3 +541,38 @@ class DLTrainer:
             raise ImportError("PyTorch required — pip install torch")
 
         t0 = time.time()
+        self.model_type = model_type
+        cfg = self.cfg
+
+        # Feature engineering 
+        X, y, cols = self.eng.build(df, fit_scaler=True)
+        n_features  = X.shape[2]
+        n           = len(X)
+
+        n_train = int(n * cfg.train_ratio)
+        n_val   = int(n * cfg.val_ratio)
+
+        X_tr, y_tr = X[:n_train],         y[:n_train]
+        X_va, y_va = X[n_train:n_train+n_val], y[n_train:n_train+n_val]
+        X_te, y_te = X[n_train+n_val:],   y[n_train+n_val:]
+
+        train_dl = DataLoader(TimeSeriesDataset(X_tr, y_tr),
+                              batch_size=cfg.batch_size, shuffle=True,  drop_last=True)
+        val_dl   = DataLoader(TimeSeriesDataset(X_va, y_va),
+                              batch_size=cfg.batch_size, shuffle=False, drop_last=False)
+
+        # Build model 
+        self.model = self._build_model(model_type, n_features).to(DEVICE)
+        n_params   = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print(f"\n[{model_type.value.upper()}] Parameters: {n_params:,} | Device: {DEVICE}")
+
+        optimizer = AdamW(self.model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+        scheduler = OneCycleLR(optimizer, max_lr=cfg.lr,
+                               steps_per_epoch=len(train_dl),
+                               epochs=cfg.epochs, pct_start=0.3)
+        is_tft = model_type == ModelType.TFT
+
+        # Training loop
+        train_losses, val_losses = [], []
+        best_val, patience_ctr   = float("inf"), 0
+        best_epoch               = 0
