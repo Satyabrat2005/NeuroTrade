@@ -464,3 +464,18 @@ class TFTModel(nn.Module if _TORCH else object):
         preds    = self.head(context)             # (B, H * nq)
         preds    = preds.view(-1, self.H, self.nq)  # (B, H, nq)
         return preds, vsn_w                        # (B, H, nq), (B, T, F)
+
+#  LOSSES
+def quantile_loss(preds: "torch.Tensor",
+                  target: "torch.Tensor",
+                  quantiles: List[float]) -> "torch.Tensor":
+    """
+    Pinball (quantile) loss for TFT.
+    preds  : (B, H, nq)
+    target : (B, H)
+    """
+    target = target.unsqueeze(-1).expand_as(preds)
+    q      = torch.tensor(quantiles, device=preds.device, dtype=preds.dtype)
+    errors = target - preds
+    loss   = torch.max((q - 1) * errors, q * errors)
+    return loss.mean()
