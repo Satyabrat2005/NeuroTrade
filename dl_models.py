@@ -266,3 +266,18 @@ class LSTMAttention(nn.Module if _TORCH else object):
         context = (weight * out).sum(dim=1)         # (B, 2H)
         context = self.drop(self.norm(context))
         return self.head(context), weight.squeeze(-1)   # (B, H), (B, T)
+
+#  MODEL 2 — TEMPORAL CONVOLUTIONAL NETWORK (TCN)
+
+class _CausalConv1d(nn.Module if _TORCH else object):
+    """Causal (left-padded) dilated convolution."""
+
+    def __init__(self, in_ch: int, out_ch: int, kernel: int, dilation: int):
+        super().__init__()
+        self.padding = (kernel - 1) * dilation
+        self.conv = nn.utils.weight_norm(
+            nn.Conv1d(in_ch, out_ch, kernel, dilation=dilation, padding=self.padding)
+        )
+
+    def forward(self, x):
+        return self.conv(x)[:, :, :-self.padding] if self.padding else self.conv(x)
