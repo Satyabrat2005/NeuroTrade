@@ -511,3 +511,33 @@ class DLTrainer:
         preds   = trainer.predict(df)
         signal  = DLSignalGenerator.from_result(result).signal(df, i)
     """
+
+    def __init__(self, cfg: DLConfig = None):
+        self.cfg       = cfg or DLConfig()
+        self.model:    Optional[nn.Module]   = None
+        self.eng:      DLFeatureEngineer     = DLFeatureEngineer(cfg)
+        self.model_type: Optional[ModelType] = None
+        self._best_state = None
+
+    # ── public ────────────────────────────────────────────────────────────────
+
+    def train(self, df: pd.DataFrame, model_type: ModelType,
+              progress_cb: Optional[Callable] = None) -> TrainingResult:
+        """
+        Full train–val–test pipeline.
+
+        Parameters
+        ----------
+        df          : indicator-enriched OHLCV DataFrame
+        model_type  : LSTM | TCN | TFT
+        progress_cb : optional callback(epoch, n_epochs, train_loss, val_loss)
+                      used by Streamlit progress bars
+
+        Returns
+        -------
+        TrainingResult with metrics and saved model path
+        """
+        if not _TORCH:
+            raise ImportError("PyTorch required — pip install torch")
+
+        t0 = time.time()
