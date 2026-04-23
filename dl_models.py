@@ -479,3 +479,10 @@ def quantile_loss(preds: "torch.Tensor",
     errors = target - preds
     loss   = torch.max((q - 1) * errors, q * errors)
     return loss.mean()
+def directional_accuracy(pred: np.ndarray, actual: np.ndarray) -> float:
+    """% of time the sign of predicted change matches actual change."""
+    if len(pred) < 2:
+        return 0.0
+    pred_dir   = np.sign(np.diff(pred,   axis=0))
+    actual_dir = np.sign(np.diff(actual, axis=0))
+    return float(np.mean(pred_dir == actual_dir)) * 100
