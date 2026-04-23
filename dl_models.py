@@ -649,3 +649,25 @@ class DLTrainer:
 
         with torch.no_grad():
             out, attn = self.model(inp)
+
+        if is_tft:
+            preds_q = out[0].cpu().numpy()     # (H, nq)
+            preds   = preds_q[:, 1]            # median quantile
+            quants  = preds_q
+        else:
+            preds  = out[0].cpu().numpy()      # (H,)
+            quants = None
+            if attn is not None:
+                attn = attn[0].cpu().numpy()   # (T,)
+
+        # generate future dates
+        last_date = df.index[-1]
+        freq      = pd.infer_freq(df.index[-20:]) or "B"
+        fut_dates = pd.date_range(last_date, periods=cfg.forecast_horizon + 1, freq=freq)[1:]
+
+        return {
+            "forecast":  preds,
+            "quantiles": quants,
+            "attention": attn if return_attention else None,
+            "dates":     fut_dates,
+        }
