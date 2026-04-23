@@ -621,3 +621,31 @@ class DLTrainer:
             duration_sec = time.time() - t0,
             n_params     = n_params,
         )
+    def predict(self, df: pd.DataFrame,
+                return_attention: bool = False) -> Dict:
+        """
+        Generate multi-step forecasts for the last `seq_len` bars.
+
+        Returns
+        -------
+        dict with keys:
+            'forecast'  : (forecast_horizon,) predicted values (target units)
+            'quantiles' : (forecast_horizon, 3) or None — TFT only
+            'attention' : attention weights or None
+            'dates'     : future date index
+        """
+        if self.model is None:
+            raise RuntimeError("Call train() or load() first")
+
+        self.model.eval()
+        cfg     = self.cfg
+        is_tft  = self.model_type == ModelType.TFT
+
+        # get last seq_len rows
+        arr    = self.eng.transform(df)
+        if len(arr) < cfg.seq_len:
+            raise ValueError(f"Need at least {cfg.seq_len} rows, got {len(arr)}")
+        inp    = torch.from_numpy(arr[-cfg.seq_len:]).unsqueeze(0).to(DEVICE)
+
+        with torch.no_grad():
+            out, attn = self.model(inp)
