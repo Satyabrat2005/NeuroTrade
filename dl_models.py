@@ -74,3 +74,15 @@ class DLConfig:
     tft_n_heads:      int   = 4
     tft_n_layers:     int   = 2
     tft_quantiles:    List[float] = field(default_factory=lambda: [0.1, 0.5, 0.9])
+
+CONFIG = DLConfig()
+
+# ── Curated feature columns (order matters for reproducibility) ───────────────
+CURATED_FEATURES = [
+    "Open", "High", "Low", "Close", "Volume",
+    "Returns", "Log_Returns", "HL_Spread",
+    "SMA_20", "EMA_21", "MACD", "MACD_Signal", "MACD_Hist",
+    "RSI", "ATR", "ADX", "BB_Upper", "BB_Lower", "BB_Width",
+    "OBV", "VWAP", "CCI", "%K", "%D",
+    "Realized_Vol_21", "Z_Score_20",
+]
