@@ -41,7 +41,7 @@ class SHAPExplainer:
         self._base_value = None
         self._feature_names: List[str] = []
 
-    # ── fit ───────────────────────────────────────────────────────────────
+    # fit 
     def fit(
         self,
         model,
