@@ -183,3 +183,19 @@ class DLFeatureEngineer:
         data["Quarter"]     = (idx.quarter.astype(np.float32) - 1) / 3.0
         data["DayOfYear"]   = idx.dayofyear.astype(np.float32) / 365.0
         return data
+
+    def _make_windows(self,
+                      values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Sliding window approach — no data leakage."""
+        cfg  = self.cfg
+        T    = cfg.seq_len
+        H    = cfg.forecast_horizon
+        tidx = self.target_idx
+        n    = len(values)
+        X, y = [], []
+
+        for i in range(T, n - H + 1):
+            X.append(values[i - T: i])          # (seq_len, n_features)
+            y.append(values[i: i + H, tidx])    # (forecast_horizon,)
+
+        return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
