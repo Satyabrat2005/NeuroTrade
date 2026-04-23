@@ -100,7 +100,7 @@ class SHAPExplainer:
 
         return self
 
-    # ── explain ──────────────────────────────────────────────────────────
+    # explain 
     def explain(
         self, X: np.ndarray, max_samples: int = 200,
     ) -> Dict:
