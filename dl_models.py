@@ -486,3 +486,28 @@ def directional_accuracy(pred: np.ndarray, actual: np.ndarray) -> float:
     pred_dir   = np.sign(np.diff(pred,   axis=0))
     actual_dir = np.sign(np.diff(actual, axis=0))
     return float(np.mean(pred_dir == actual_dir)) * 100
+
+#  TRAINER
+@dataclass
+class TrainingResult:
+    model_type:   str
+    train_losses: List[float]
+    val_losses:   List[float]
+    best_epoch:   int
+    metrics:      Dict
+    model_path:   str
+    duration_sec: float
+    n_params:     int
+
+
+class DLTrainer:
+    """
+    Unified trainer for LSTM, TCN, and TFT models.
+
+    Usage
+    -----
+        trainer = DLTrainer(cfg)
+        result  = trainer.train(df, ModelType.LSTM)
+        preds   = trainer.predict(df)
+        signal  = DLSignalGenerator.from_result(result).signal(df, i)
+    """
