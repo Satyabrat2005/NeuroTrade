@@ -128,3 +128,14 @@ class DLFeatureEngineer:
         # identify target column index (used to invert scale later)
         tgt = self._target_col()
         self.target_idx = self.feature_cols.index(tgt) if tgt in self.feature_cols else 3  # Close fallback
+
+        values = data.values.astype(np.float32)
+
+        if fit_scaler:
+            self.scaler = RobustScaler()
+            values = self.scaler.fit_transform(values)
+        elif self.scaler is not None:
+            values = self.scaler.transform(values)
+
+        X, y = self._make_windows(values)
+        return X, y, self.feature_cols
