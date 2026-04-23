@@ -281,3 +281,19 @@ class _CausalConv1d(nn.Module if _TORCH else object):
 
     def forward(self, x):
         return self.conv(x)[:, :, :-self.padding] if self.padding else self.conv(x)
+
+class _TCNBlock(nn.Module if _TORCH else object):
+    """Single TCN residual block with two dilated causal convolutions."""
+
+    def __init__(self, in_ch: int, out_ch: int, kernel: int, dilation: int, dropout: float):
+        super().__init__()
+        self.net = nn.Sequential(
+            _CausalConv1d(in_ch,  out_ch, kernel, dilation),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            _CausalConv1d(out_ch, out_ch, kernel, dilation),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.downsample = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else None
+        self.norm = nn.LayerNorm(out_ch)
