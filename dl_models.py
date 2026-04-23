@@ -757,3 +757,25 @@ class DLTrainer:
         r2     = r2_score(flat_a, flat_p)
         mape   = float(np.mean(np.abs((flat_a - flat_p) / (np.abs(flat_a) + 1e-8)))) * 100
         da     = directional_accuracy(flat_p, flat_a)
+
+        metrics = {
+            "mse":  round(mse,  6),
+            "rmse": round(float(np.sqrt(mse)), 6),
+            "mae":  round(mae,  6),
+            "mape": round(mape, 4),
+            "r2":   round(r2,   4),
+            "directional_accuracy": round(da, 2),
+            "n_test_samples": len(preds),
+        }
+        print(f"\n── Test Metrics ({self.model_type.value.upper()}) ──────────────────")
+        for k, v in metrics.items():
+            print(f"  {k:<26}: {v}")
+        return metrics
+
+    def _save(self, model_type: ModelType, n_features: int) -> str:
+        os.makedirs(self.cfg.model_dir, exist_ok=True)
+        fname = os.path.join(self.cfg.model_dir,
+                             f"{model_type.value}_f{n_features}_h{self.cfg.forecast_horizon}.pt")
+        torch.save(self.model.state_dict(), fname)
+        print(f"\n[save] Model saved → {fname}")
+        return fname
