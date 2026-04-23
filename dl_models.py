@@ -432,3 +432,20 @@ class TFTModel(nn.Module if _TORCH else object):
                                 batch_first=True, dropout=drop if cfg.tft_n_layers > 1 else 0.0)
         self.gate_enc = nn.Sequential(nn.Linear(d, d), nn.Sigmoid())
         self.norm_enc = nn.LayerNorm(d)
+        attn_layer = nn.TransformerEncoderLayer(
+            d_model=d, nhead=nh, dim_feedforward=d * 4,
+            dropout=drop, activation="gelu", batch_first=True,
+            norm_first=True,
+        )
+        self.attn = nn.TransformerEncoder(attn_layer, num_layers=cfg.tft_n_layers)
+        self.grn_post = _GRN(d, d, drop)
+        self.norm_post = nn.LayerNorm(d)
+
+        self.head = nn.Sequential(
+            nn.Linear(d, d),
+            nn.GELU(),
+            nn.Dropout(drop),
+            nn.Linear(d, H * nq),
+        )
+        self.nq = nq
+        self.H  = H
