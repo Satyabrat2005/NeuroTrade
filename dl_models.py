@@ -576,3 +576,24 @@ class DLTrainer:
         train_losses, val_losses = [], []
         best_val, patience_ctr   = float("inf"), 0
         best_epoch               = 0
+
+        for epoch in range(1, cfg.epochs + 1):
+            tr_loss = self._train_epoch(train_dl, optimizer, scheduler, is_tft)
+            vl_loss = self._eval_epoch(val_dl, is_tft)
+            train_losses.append(tr_loss)
+            val_losses.append(vl_loss)
+
+            if progress_cb:
+                progress_cb(epoch, cfg.epochs, tr_loss, vl_loss)
+
+            if vl_loss < best_val:
+                best_val     = vl_loss
+                best_epoch   = epoch
+                patience_ctr = 0
+                self._best_state = {k: v.cpu().clone()
+                                    for k, v in self.model.state_dict().items()}
+            else:
+                patience_ctr += 1
+                if patience_ctr >= cfg.patience:
+                    print(f"  Early stop at epoch {epoch} (best={best_epoch})")
+                    break
