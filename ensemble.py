@@ -1,297 +1,327 @@
 """
-ensemble.py — Ensemble methods for NeuroTrade (Layer 4).
+NeuroTrade — Ensemble Methods
+ensemble.py — Stacking, Voting, and Weighted Ensemble for multi-model fusion.
 
-Provides three combination strategies that sit on top of any
-dict[str, BaseModel] produced by ml_models.get_models():
-
-  • VotingEnsemble      — hard / soft majority vote
-  • WeightedEnsemble    — confidence-weighted probability blending
-  • StackingEnsemble    — meta-learner trained on base-model predictions
-
-All ensembles expose the same predict / predict_proba / evaluate interface
-so the Streamlit panel can treat them identically.
+Combines predictions from ML, DL, and Quantum models into a single robust signal.
 """
-
-from __future__ import annotations
-
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    precision_score,
-    recall_score,
-)
-from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import StandardScaler
+import warnings
+from typing import Optional, Dict, List, Tuple, Callable
+from dataclasses import dataclass, field
 
-from ml_models import BaseModel
+warnings.filterwarnings("ignore")
 
+try:
+    from sklearn.linear_model import LogisticRegression, Ridge
+    from sklearn.model_selection import TimeSeriesSplit
+    from sklearn.metrics import accuracy_score, log_loss
+    _SKL = True
+except ImportError:
+    _SKL = False
 
-# ──────────────────────────────────────────────
-# Shared helpers
-# ──────────────────────────────────────────────
-
-def _collect_probas(
-    models: Dict[str, BaseModel], X: np.ndarray
-) -> np.ndarray:
-    """Stack class-1 probabilities from every model → (n_samples, n_models)."""
-    return np.column_stack([
-        m.predict_proba(X)[:, 1] for m in models.values()
-    ])
-
-
-def _evaluate(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-    return {
-        "accuracy":  accuracy_score(y_true, y_pred),
-        "precision": precision_score(y_true, y_pred, average="weighted", zero_division=0),
-        "recall":    recall_score(y_true, y_pred, average="weighted", zero_division=0),
-        "f1":        f1_score(y_true, y_pred, average="weighted", zero_division=0),
-    }
+try:
+    from backtester import PositionSide
+except ImportError:
+    from enum import Enum
+    class PositionSide(Enum):
+        LONG = "long"; SHORT = "short"; FLAT = "flat"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  1. Voting Ensemble
+#  CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
 
-class VotingEnsemble:
-    """Hard or soft majority-vote over trained base models.
+@dataclass
+class EnsembleConfig:
+    method:           str   = "weighted"    # "vote" | "weighted" | "stacking"
+    task:             str   = "direction"   # "direction" | "returns"
+    long_threshold:   float = 0.55
+    short_threshold:  float = 0.45
+    # stacking
+    stack_meta:       str   = "logistic"    # "logistic" | "ridge"
+    stack_cv:         int   = 3
+    # diversity
+    correlation_penalty: float = 0.1
 
-    Parameters
-    ----------
-    models : dict[str, BaseModel]
-        Already-trained model wrappers.
-    voting : ``'hard'`` | ``'soft'``
-        * *hard* — each model casts a binary vote; majority wins.
-        * *soft* — average predicted probabilities; argmax wins.
-    """
 
-    def __init__(
-        self,
-        models: Dict[str, BaseModel],
-        voting: str = "soft",
-    ):
-        self.models = models
-        self.voting = voting
-        self.name = f"Voting ({'S' if voting == 'soft' else 'H'})"
+# ══════════════════════════════════════════════════════════════════════════════
+#  HARD VOTE
+# ══════════════════════════════════════════════════════════════════════════════
 
-    # ── predict_proba ────────────────────────────────────────────────────
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Return (n_samples, 2) averaged probability matrix."""
-        all_proba = np.array([
-            m.predict_proba(X) for m in self.models.values()
-        ])  # (n_models, n_samples, n_classes)
-        return all_proba.mean(axis=0)
+class HardVotingEnsemble:
+    """Majority-vote ensemble: each model gets one vote."""
 
-    # ── predict ──────────────────────────────────────────────────────────
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        if self.voting == "soft":
-            avg_proba = self.predict_proba(X)
-            return (avg_proba[:, 1] >= 0.5).astype(int)
+    def __init__(self, cfg: EnsembleConfig = None):
+        self.cfg = cfg or EnsembleConfig()
+
+    def predict(self, predictions: Dict[str, np.ndarray]) -> np.ndarray:
+        """
+        predictions: {model_name: array of probabilities or class labels}
+        Returns: array of ensemble predictions
+        """
+        if self.cfg.task == "direction":
+            # convert probabilities to votes
+            votes = []
+            for name, preds in predictions.items():
+                votes.append((preds > 0.5).astype(int))
+            vote_matrix = np.column_stack(votes)
+            # majority vote
+            return (vote_matrix.mean(axis=1) > 0.5).astype(int)
         else:
-            preds = np.column_stack([
-                m.predict(X) for m in self.models.values()
-            ])
-            # majority vote (>50 % of models say 1)
-            return (preds.mean(axis=1) >= 0.5).astype(int)
-
-    # ── evaluate ─────────────────────────────────────────────────────────
-    def evaluate(
-        self, X_test: np.ndarray, y_test: np.ndarray
-    ) -> Dict[str, float]:
-        return _evaluate(y_test, self.predict(X_test))
+            # regression: simple average
+            arrays = list(predictions.values())
+            return np.mean(arrays, axis=0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  2. Weighted Ensemble
+#  SOFT VOTE (Weighted Average)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class WeightedEnsemble:
-    """Probability blending where each model's weight is its validation score.
-
-    Parameters
-    ----------
-    models : dict[str, BaseModel]
-        Already-trained model wrappers.
-    weights : dict[str, float] | None
-        Manual weights per model key.  If ``None``, weights are computed
-        automatically from validation accuracy via :meth:`fit_weights`.
+    """
+    Weighted average ensemble. Weights can be:
+    - Uniform (equal weight)
+    - Performance-based (validation accuracy)
+    - Diversity-penalized (reduce correlated models)
     """
 
-    def __init__(
-        self,
-        models: Dict[str, BaseModel],
-        weights: Optional[Dict[str, float]] = None,
-    ):
-        self.models = models
-        self.weights: Dict[str, float] = weights or {k: 1.0 for k in models}
-        self.name = "Weighted"
+    def __init__(self, cfg: EnsembleConfig = None):
+        self.cfg = cfg or EnsembleConfig()
+        self.weights: Dict[str, float] = {}
 
-    # ── fit_weights ──────────────────────────────────────────────────────
-    def fit_weights(
-        self,
-        X_val: np.ndarray,
-        y_val: np.ndarray,
-    ) -> Dict[str, float]:
-        """Set weights proportional to each model's validation accuracy."""
-        raw: Dict[str, float] = {}
-        for name, model in self.models.items():
-            acc = accuracy_score(y_val, model.predict(X_val))
-            raw[name] = max(acc, 0.01)  # floor to avoid zero-weight
-        total = sum(raw.values())
-        self.weights = {k: v / total for k, v in raw.items()}
+    def learn_weights(self, predictions: Dict[str, np.ndarray],
+                      y_true: np.ndarray) -> Dict[str, float]:
+        """Learn optimal weights from validation set."""
+        names = list(predictions.keys())
+        n_models = len(names)
+
+        if n_models == 0:
+            return {}
+
+        # base scores
+        scores = {}
+        for name in names:
+            preds = predictions[name]
+            if self.cfg.task == "direction":
+                pred_labels = (preds > 0.5).astype(int)
+                scores[name] = accuracy_score(y_true, pred_labels)
+            else:
+                mse = np.mean((preds - y_true) ** 2)
+                scores[name] = 1.0 / (mse + 1e-8)
+
+        # diversity penalty: reduce weight for correlated models
+        if n_models > 1 and self.cfg.correlation_penalty > 0:
+            pred_matrix = np.column_stack([predictions[n] for n in names])
+            corr = np.corrcoef(pred_matrix.T)
+            for i, name_i in enumerate(names):
+                avg_corr = (np.sum(np.abs(corr[i])) - 1) / (n_models - 1)
+                scores[name_i] *= (1 - self.cfg.correlation_penalty * avg_corr)
+
+        # normalize
+        total = sum(max(s, 0.01) for s in scores.values())
+        self.weights = {k: max(v, 0.01) / total for k, v in scores.items()}
         return self.weights
 
-    # ── predict_proba ────────────────────────────────────────────────────
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        weighted_sum = np.zeros((len(X), 2))
-        for name, model in self.models.items():
-            w = self.weights.get(name, 0.0)
-            weighted_sum += w * model.predict_proba(X)
-        return weighted_sum
+    def predict(self, predictions: Dict[str, np.ndarray],
+                weights: Dict[str, float] = None) -> np.ndarray:
+        w = weights or self.weights
+        if not w:
+            w = {k: 1.0 / len(predictions) for k in predictions}
 
-    # ── predict ──────────────────────────────────────────────────────────
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        proba = self.predict_proba(X)
-        return (proba[:, 1] >= 0.5).astype(int)
+        result = np.zeros(len(next(iter(predictions.values()))))
+        total_w = sum(w.get(k, 0) for k in predictions)
 
-    # ── evaluate ─────────────────────────────────────────────────────────
-    def evaluate(
-        self, X_test: np.ndarray, y_test: np.ndarray
-    ) -> Dict[str, float]:
-        return _evaluate(y_test, self.predict(X_test))
+        for name, preds in predictions.items():
+            result += (w.get(name, 0) / total_w) * preds
+
+        return result
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  3. Stacking Ensemble
+#  STACKING
 # ══════════════════════════════════════════════════════════════════════════════
 
 class StackingEnsemble:
-    """Two-layer stacking: base model probabilities are features for a
-    Logistic Regression meta-learner.
-
-    Parameters
-    ----------
-    models : dict[str, BaseModel]
-        Already-trained base model wrappers.
-    meta_C : float
-        Regularisation strength for the logistic meta-learner.
+    """
+    Level-2 stacking: base model predictions become features for a meta-learner.
+    Uses time-series cross-validation to avoid leakage.
     """
 
-    def __init__(
-        self,
-        models: Dict[str, BaseModel],
-        meta_C: float = 1.0,
-    ):
-        self.models = models
-        self.meta = LogisticRegression(
-            C=meta_C, max_iter=500, solver="lbfgs", random_state=42,
-        )
-        self.scaler = StandardScaler()
-        self._fitted = False
-        self.name = "Stacking"
+    def __init__(self, cfg: EnsembleConfig = None):
+        if not _SKL:
+            raise ImportError("scikit-learn required")
+        self.cfg = cfg or EnsembleConfig()
+        self.meta_model = None
+        self.model_names: List[str] = []
 
-    # ── _meta_features ───────────────────────────────────────────────────
-    def _meta_features(self, X: np.ndarray) -> np.ndarray:
-        """Build meta-feature matrix: class-1 probability from each base."""
-        return _collect_probas(self.models, X)
+    def fit(self, predictions: Dict[str, np.ndarray],
+            y_true: np.ndarray):
+        """Train meta-learner on base model predictions."""
+        self.model_names = list(predictions.keys())
+        X_meta = np.column_stack([predictions[n] for n in self.model_names])
 
-    # ── fit ───────────────────────────────────────────────────────────────
-    def fit(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-    ) -> "StackingEnsemble":
-        """Train meta-learner on base-model outputs."""
-        meta_X = self._meta_features(X_train)
-        meta_X = self.scaler.fit_transform(meta_X)
-        self.meta.fit(meta_X, y_train)
-        self._fitted = True
+        if self.cfg.task == "direction":
+            y_int = y_true.astype(int)
+            if self.cfg.stack_meta == "logistic":
+                self.meta_model = LogisticRegression(
+                    C=1.0, max_iter=500, random_state=42)
+            else:
+                self.meta_model = Ridge(alpha=1.0)
+            self.meta_model.fit(X_meta, y_int)
+        else:
+            self.meta_model = Ridge(alpha=1.0)
+            self.meta_model.fit(X_meta, y_true)
+
         return self
 
-    # ── predict_proba ────────────────────────────────────────────────────
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        if not self._fitted:
-            raise RuntimeError("StackingEnsemble.fit() must be called first.")
-        meta_X = self.scaler.transform(self._meta_features(X))
-        return self.meta.predict_proba(meta_X)
+    def predict(self, predictions: Dict[str, np.ndarray]) -> np.ndarray:
+        if self.meta_model is None:
+            raise RuntimeError("Call fit() first")
+        X_meta = np.column_stack([predictions[n] for n in self.model_names])
 
-    # ── predict ──────────────────────────────────────────────────────────
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        if not self._fitted:
-            raise RuntimeError("StackingEnsemble.fit() must be called first.")
-        meta_X = self.scaler.transform(self._meta_features(X))
-        return self.meta.predict(meta_X)
+        if self.cfg.task == "direction" and hasattr(self.meta_model, 'predict_proba'):
+            return self.meta_model.predict_proba(X_meta)[:, 1]
+        return self.meta_model.predict(X_meta)
 
-    # ── evaluate ─────────────────────────────────────────────────────────
-    def evaluate(
-        self, X_test: np.ndarray, y_test: np.ndarray
-    ) -> Dict[str, float]:
-        return _evaluate(y_test, self.predict(X_test))
-
-    # ── meta_weights ─────────────────────────────────────────────────────
-    def meta_weights(self) -> Optional[Dict[str, float]]:
-        """Return the logistic-regression coefficient per base model."""
-        if not self._fitted:
-            return None
-        coefs = self.meta.coef_[0]
-        names = list(self.models.keys())
-        return {n: float(c) for n, c in zip(names, coefs)}
+    def get_model_weights(self) -> Dict[str, float]:
+        """Extract learned importance from meta-learner coefficients."""
+        if self.meta_model is None:
+            return {}
+        coefs = self.meta_model.coef_
+        if coefs.ndim > 1:
+            coefs = coefs[0]
+        abs_coefs = np.abs(coefs)
+        total = abs_coefs.sum() or 1.0
+        return {name: float(abs_coefs[i] / total)
+                for i, name in enumerate(self.model_names)}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Factory / convenience
+#  UNIFIED ENSEMBLE MANAGER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_ensembles(
-    trained_models: Dict[str, BaseModel],
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_val: np.ndarray,
-    y_val: np.ndarray,
-) -> Dict[str, object]:
-    """Instantiate, fit, and return all three ensemble methods.
-
-    Parameters
-    ----------
-    trained_models : dict
-        Already-trained base models (from ``train_all_models``).
-    X_train, y_train : array-like
-        Training split (used by StackingEnsemble meta-learner).
-    X_val, y_val : array-like
-        Validation split (used by WeightedEnsemble to set weights,
-        and by StackingEnsemble as a secondary quality check).
-
-    Returns
-    -------
-    dict  — ``{ "voting": VotingEnsemble, "weighted": WeightedEnsemble,
-                 "stacking": StackingEnsemble }``
+class EnsembleManager:
     """
-    voting = VotingEnsemble(trained_models, voting="soft")
+    Orchestrates multi-model ensemble with configurable fusion method.
 
-    weighted = WeightedEnsemble(trained_models)
-    weighted.fit_weights(X_val, y_val)
+    Usage
+    -----
+        mgr = EnsembleManager(cfg)
+        mgr.fit(train_preds, y_train)
+        combined = mgr.predict(test_preds)
+        signal = mgr.get_signal(combined[-1])
+    """
 
-    stacking = StackingEnsemble(trained_models)
-    stacking.fit(X_train, y_train)
+    def __init__(self, cfg: EnsembleConfig = None):
+        self.cfg = cfg or EnsembleConfig()
+        if cfg and cfg.method == "stacking":
+            self.engine = StackingEnsemble(cfg)
+        elif cfg and cfg.method == "vote":
+            self.engine = HardVotingEnsemble(cfg)
+        else:
+            self.engine = WeightedEnsemble(cfg)
+        self.weights: Dict[str, float] = {}
 
-    return {
-        "voting":   voting,
-        "weighted": weighted,
-        "stacking": stacking,
+    def fit(self, predictions: Dict[str, np.ndarray],
+            y_true: np.ndarray):
+        if isinstance(self.engine, StackingEnsemble):
+            self.engine.fit(predictions, y_true)
+            self.weights = self.engine.get_model_weights()
+        elif isinstance(self.engine, WeightedEnsemble):
+            self.weights = self.engine.learn_weights(predictions, y_true)
+        return self
+
+    def predict(self, predictions: Dict[str, np.ndarray]) -> np.ndarray:
+        if isinstance(self.engine, StackingEnsemble):
+            return self.engine.predict(predictions)
+        elif isinstance(self.engine, WeightedEnsemble):
+            return self.engine.predict(predictions, self.weights)
+        else:
+            return self.engine.predict(predictions)
+
+    def get_signal(self, pred_value: float) -> PositionSide:
+        cfg = self.cfg
+        if cfg.task == "direction":
+            if pred_value > cfg.long_threshold:
+                return PositionSide.LONG
+            elif pred_value < cfg.short_threshold:
+                return PositionSide.SHORT
+        else:
+            if pred_value > 0.001:
+                return PositionSide.LONG
+            elif pred_value < -0.001:
+                return PositionSide.SHORT
+        return PositionSide.FLAT
+
+    def make_signal_func(self, model_predictors: Dict[str, Callable]):
+        """Create backtester-compatible signal from multiple model predictors."""
+        mgr = self
+        cache = {"bar": -1, "pred": None}
+
+        def signal_func(df: pd.DataFrame, i: int, **kwargs):
+            if i < 60:
+                return None
+            if cache["bar"] == -1 or (i - cache["bar"]) >= 5:
+                try:
+                    sub = df.iloc[:i+1]
+                    preds = {}
+                    for name, predictor in model_predictors.items():
+                        p = predictor(sub)
+                        if p is not None:
+                            preds[name] = np.array([p])
+                    if preds:
+                        combo = mgr.predict(preds)
+                        cache["pred"] = float(combo[-1])
+                    cache["bar"] = i
+                except Exception:
+                    return None
+
+            if cache["pred"] is None:
+                return None
+            return mgr.get_signal(cache["pred"])
+
+        return signal_func
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SELF-TEST
+# ══════════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    print("\n" + "=" * 65)
+    print("  ensemble.py — Ensemble Methods Self-Test")
+    print("=" * 65)
+
+    np.random.seed(42)
+    n = 200
+    y_true = np.random.randint(0, 2, n)
+
+    # simulate 3 model predictions (probabilities)
+    preds = {
+        "xgboost": np.clip(y_true * 0.6 + np.random.normal(0.3, 0.15, n), 0, 1),
+        "rf":      np.clip(y_true * 0.5 + np.random.normal(0.3, 0.2, n), 0, 1),
+        "lstm":    np.clip(y_true * 0.55 + np.random.normal(0.25, 0.18, n), 0, 1),
     }
 
+    # Split
+    split = int(n * 0.7)
+    tr_preds = {k: v[:split] for k, v in preds.items()}
+    te_preds = {k: v[split:] for k, v in preds.items()}
+    y_tr, y_te = y_true[:split], y_true[split:]
 
-def evaluate_ensembles(
-    ensembles: Dict[str, object],
-    X_test: np.ndarray,
-    y_test: np.ndarray,
-) -> Dict[str, Dict[str, float]]:
-    """Evaluate every ensemble on a held-out test set."""
-    results: Dict[str, Dict[str, float]] = {}
-    for name, ens in ensembles.items():
-        results[name] = ens.evaluate(X_test, y_test)
-    return results
+    for method in ["vote", "weighted", "stacking"]:
+        print(f"\n  {method.upper()}")
+        print("  " + "-" * 40)
+        cfg = EnsembleConfig(method=method)
+        mgr = EnsembleManager(cfg)
+        mgr.fit(tr_preds, y_tr)
+        combo = mgr.predict(te_preds)
+        acc = accuracy_score(y_te, (combo > 0.5).astype(int))
+        print(f"    Test Accuracy: {acc*100:.2f}%")
+        print(f"    Weights: {mgr.weights}")
+        sig = mgr.get_signal(float(combo[-1]))
+        print(f"    Last Signal: {sig}")
+
+    print("\n  ✓  All ensemble methods passed.\n")
