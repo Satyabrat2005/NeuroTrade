@@ -6,7 +6,10 @@ from enum import Enum
 import warnings
 warnings.filterwarnings("ignore")
 
+
+# ============================================================
 # ENUMS & DATA STRUCTURES
+# ============================================================
 
 class OrderType(Enum):
     MARKET = "market"
@@ -30,6 +33,7 @@ class MarketRegime(Enum):
     HIGH_VOL = "high_volatility"
     LOW_VOL = "low_volatility"
 
+
 @dataclass
 class Trade:
     entry_date: pd.Timestamp
@@ -41,7 +45,7 @@ class Trade:
     pnl: float = 0.0
     pnl_pct: float = 0.0
     mae: float = 0.0        # Maximum Adverse Excursion
-    mfe: float = 0.0        
+    mfe: float = 0.0        # Maximum Favorable Excursion
     duration_bars: int = 0
     exit_reason: str = ""
     regime: str = ""
@@ -64,6 +68,7 @@ class Position:
     mae: float = 0.0
     mfe: float = 0.0
 
+
 @dataclass
 class BacktestConfig:
     initial_capital: float = 100_000.0
@@ -81,10 +86,13 @@ class BacktestConfig:
     risk_free_rate: float = 0.06          # 6% annual (India benchmark)
     annualization_factor: int = 252
 
+
+# ============================================================
 # RISK & PERFORMANCE ANALYTICS ENGINE
+# ============================================================
 
 class RiskAnalytics:
-    
+
     @staticmethod
     def sharpe_ratio(returns: pd.Series, rf: float = 0.06, ann: int = 252) -> float:
         excess = returns - rf / ann
@@ -217,8 +225,10 @@ class RiskAnalytics:
             "avg_consecutive_losses": np.mean(losses) if losses else 0,
         }
 
-# REGIME DETECTION ENGINE
 
+# ============================================================
+# REGIME DETECTION ENGINE
+# ============================================================
 
 class RegimeDetector:
 
@@ -232,6 +242,7 @@ class RegimeDetector:
         regimes = []
         closes = df['Close'].values
         n = len(closes)
+
         sma50 = pd.Series(closes).rolling(50).mean().values
         sma200 = pd.Series(closes).rolling(200).mean().values
 
@@ -243,6 +254,7 @@ class RegimeDetector:
             if np.isnan(sma200[i]) or np.isnan(atr_ma[i]):
                 regimes.append(MarketRegime.SIDEWAYS.value)
                 continue
+
             trending_up = sma50[i] > sma200[i]
             high_vol = atr[i] > atr_ma[i] * 1.2
 
@@ -258,7 +270,9 @@ class RegimeDetector:
         return pd.Series(regimes, index=df.index)
 
 
+# ============================================================
 # POSITION SIZER
+# ============================================================
 
 class PositionSizer:
 
@@ -286,7 +300,10 @@ class PositionSizer:
         scale = target_vol / realized_vol
         return (capital * scale) / price
 
+
+# ============================================================
 # CORE BACKTESTING ENGINE
+# ============================================================
 
 class Backtester:
 
@@ -313,6 +330,7 @@ class Backtester:
 
     def _apply_commission(self, trade_value: float) -> float:
         return trade_value * self.config.commission_pct
+
     def _open_position(self, date, price, side: PositionSide,
                        atr: float = None, returns_hist: pd.Series = None):
         exec_price = self._apply_slippage(
@@ -417,6 +435,7 @@ class Backtester:
             excursion_low = (pos.entry_price - low) / pos.entry_price
             pos.mae = min(pos.mae, excursion_high)
             pos.mfe = max(pos.mfe, excursion_low)
+
             if pos.trailing_stop_pct:
                 new_ts = low * (1 + pos.trailing_stop_pct)
                 pos.trailing_stop = min(pos.trailing_stop or float('inf'), new_ts)
@@ -429,8 +448,11 @@ class Backtester:
                 return "take_profit"
 
         return None
-        
+
+    # ----------------------------------------------------------
     # MAIN RUN
+    # ----------------------------------------------------------
+
     def run(self, df: pd.DataFrame, signal_func: Callable,
             signal_kwargs: dict = None) -> dict:
         """
@@ -462,12 +484,13 @@ class Backtester:
             o, h, l, c = row['Open'], row['High'], row['Low'], row['Close']
             atr = row.get('ATR', None) if hasattr(row, 'get') else None
             regime = regimes.iloc[i]
-            # Update open position
+
+            # --- Update open position ---
             exit_reason = self._update_position(h, l, c)
             if exit_reason and self.position.side != PositionSide.FLAT:
                 self._close_position(date, c, reason=exit_reason, regime=regime)
 
-            #  Get signal
+            # --- Get signal ---
             signal = signal_func(df, i, **signal_kwargs)
 
             # --- Execute signal ---
@@ -488,7 +511,7 @@ class Backtester:
                         self._close_position(date, o, reason="signal_flip", regime=regime)
                     self._open_position(date, o, PositionSide.SHORT, atr=atr)
 
-            # Equity snapshot
+            # --- Equity snapshot ---
             portfolio_value = self.capital
             if self.position.side != PositionSide.FLAT:
                 portfolio_value += self.position.unrealized_pnl
@@ -499,7 +522,7 @@ class Backtester:
             self.daily_returns.append(ret)
             prev_equity = portfolio_value
 
-            # Drawdown abort 
+            # --- Drawdown abort ---
             peak = max(e['equity'] for e in self.equity_curve)
             if (portfolio_value - peak) / peak < -self.config.max_drawdown_abort:
                 self._aborted = True
@@ -512,9 +535,25 @@ class Backtester:
 
         return self._compile_results(df)
 
+    # ----------------------------------------------------------
     # RESULTS COMPILATION
+    # ----------------------------------------------------------
 
     def _compile_results(self, df: pd.DataFrame) -> dict:
+        if not self.equity_curve:
+            return {
+                "initial_capital": self.config.initial_capital, "final_capital": self.config.initial_capital,
+                "total_return_pct": 0.0, "annualized_return_pct": 0.0, "aborted_early": self._aborted,
+                "sharpe_ratio": 0.0, "sortino_ratio": 0.0, "calmar_ratio": 0.0, "omega_ratio": 0.0,
+                "max_drawdown_pct": 0.0, "max_drawdown_duration_bars": 0, "ulcer_index": 0.0,
+                "var_95_pct": 0.0, "cvar_95_pct": 0.0, "tail_ratio": 0.0, "daily_vol_annualized_pct": 0.0,
+                "total_trades": 0, "long_trades": 0, "short_trades": 0, "winning_trades": 0, "losing_trades": 0,
+                "win_rate_pct": 0.0, "profit_factor": 0.0, "expectancy_per_trade": 0.0, "kelly_criterion_pct": 0.0,
+                "gross_profit": 0.0, "gross_loss": 0.0, "avg_win": 0.0, "avg_loss": 0.0, "largest_win": 0.0,
+                "largest_loss": 0.0, "avg_trade_duration_bars": 0.0, "avg_mae_pct": 0.0, "avg_mfe_pct": 0.0,
+                "max_consecutive_wins": 0, "max_consecutive_losses": 0, "avg_consecutive_wins": 0.0, "avg_consecutive_losses": 0.0,
+                "exit_reasons": {}, "regime_breakdown": {}, "equity_curve": pd.DataFrame(columns=["date", "equity", "regime"]).set_index("date") if False else pd.DataFrame({"equity": []}), "trades": [], "returns": pd.Series(dtype=float)
+            }
         equity_df = pd.DataFrame(self.equity_curve).set_index("date")
         equity_series = equity_df['equity']
         returns = pd.Series(self.daily_returns)
@@ -533,6 +572,7 @@ class Backtester:
         losing_trades = [t for t in trades if t.pnl <= 0]
         long_trades = [t for t in trades if t.side == PositionSide.LONG]
         short_trades = [t for t in trades if t.side == PositionSide.SHORT]
+
         consec = ra.consecutive_stats(trades)
 
         # Regime breakdown
@@ -550,31 +590,31 @@ class Backtester:
         avg_mfe = np.mean([t.mfe for t in trades]) if trades else 0
 
         results = {
-            # Portfolio Performance 
+            # ── Portfolio Performance ──
             "initial_capital": cfg.initial_capital,
             "final_capital": equity_series.iloc[-1],
             "total_return_pct": total_return * 100,
             "annualized_return_pct": ann_return * 100,
             "aborted_early": self._aborted,
 
-            #Risk-Adjusted Returns
+            # ── Risk-Adjusted Returns ──
             "sharpe_ratio": ra.sharpe_ratio(returns, cfg.risk_free_rate, cfg.annualization_factor),
             "sortino_ratio": ra.sortino_ratio(returns, cfg.risk_free_rate, cfg.annualization_factor),
             "calmar_ratio": ra.calmar_ratio(returns, cfg.annualization_factor),
             "omega_ratio": ra.omega_ratio(returns),
 
-            # Drawdown
+            # ── Drawdown ──
             "max_drawdown_pct": ra.max_drawdown(returns) * 100,
             "max_drawdown_duration_bars": ra.max_drawdown_duration(equity_series),
             "ulcer_index": ra.ulcer_index(equity_series),
 
-            # Tail Risk
+            # ── Tail Risk ──
             "var_95_pct": ra.var(returns, 0.95) * 100,
             "cvar_95_pct": ra.cvar(returns, 0.95) * 100,
             "tail_ratio": ra.tail_ratio(returns),
             "daily_vol_annualized_pct": returns.std() * np.sqrt(cfg.annualization_factor) * 100,
 
-            #Trade Statistics
+            # ── Trade Statistics ──
             "total_trades": len(trades),
             "long_trades": len(long_trades),
             "short_trades": len(short_trades),
@@ -585,7 +625,7 @@ class Backtester:
             "expectancy_per_trade": ra.expectancy(trades),
             "kelly_criterion_pct": ra.kelly_criterion(trades) * 100,
 
-            # Trade PnL
+            # ── Trade PnL ──
             "gross_profit": sum(t.pnl for t in winning_trades),
             "gross_loss": sum(t.pnl for t in losing_trades),
             "avg_win": np.mean([t.pnl for t in winning_trades]) if winning_trades else 0,
@@ -594,27 +634,31 @@ class Backtester:
             "largest_loss": min((t.pnl for t in trades), default=0),
             "avg_trade_duration_bars": np.mean([t.duration_bars for t in trades]) if trades else 0,
 
-            # MAE / MFE
+            # ── MAE / MFE ──
             "avg_mae_pct": avg_mae * 100,
             "avg_mfe_pct": avg_mfe * 100,
 
-            # Consecutive
+            # ── Consecutive ──
             **consec,
 
-            # Exit Reasons
+            # ── Exit Reasons ──
             "exit_reasons": pd.Series([t.exit_reason for t in trades]).value_counts().to_dict(),
 
-            # Regime Breakdown
+            # ── Regime Breakdown ──
             "regime_breakdown": regime_breakdown,
 
-            #  Series (for plotting) 
+            # ── Series (for plotting) ──
             "equity_curve": equity_df,
             "trades": trades,
             "returns": returns,
         }
 
         return results
+
+
+# ============================================================
 # WALK-FORWARD OPTIMIZER
+# ============================================================
 
 class WalkForwardOptimizer:
     """
@@ -657,6 +701,7 @@ class WalkForwardOptimizer:
 
             if len(train_df) < 50 or len(test_df) < 10:
                 continue
+
             # Grid search on train
             best_score = -np.inf
             best_params = None
@@ -695,6 +740,7 @@ class WalkForwardOptimizer:
             print(f"  Fold {fold+1}: Train Score={best_score:.3f} | "
                   f"OOS Score={oos_res.get(optimize_metric, 0):.3f} | "
                   f"Params={best_params}")
+
         summary_df = pd.DataFrame(oos_results)
         return {
             "fold_results": summary_df,
@@ -711,13 +757,17 @@ class WalkForwardOptimizer:
         for values in itertools.product(*param_grid.values()):
             yield dict(zip(keys, values))
 
+
+# ============================================================
 # MONTE CARLO SIMULATOR
+# ============================================================
 
 class MonteCarloSimulator:
     """
     Bootstrap Monte Carlo simulation on trade sequence.
     Answers: "Is this edge statistically significant?"
     """
+
     def __init__(self, n_simulations: int = 10_000, confidence: float = 0.95):
         self.n_sims = n_simulations
         self.confidence = confidence
@@ -771,7 +821,10 @@ class MonteCarloSimulator:
             "raw_maxdds": np.array(sim_maxdds),
         }
 
+
+# ============================================================
 # BENCHMARK COMPARATOR
+# ============================================================
 
 class BenchmarkComparator:
     """Compare strategy against buy-and-hold benchmark."""
@@ -779,6 +832,7 @@ class BenchmarkComparator:
     @staticmethod
     def run(strategy_equity: pd.Series, df: pd.DataFrame,
             initial_capital: float, rf: float = 0.06) -> dict:
+
         bh_returns = df['Close'].pct_change().dropna()
         bh_equity = initial_capital * (1 + bh_returns).cumprod()
 
@@ -798,6 +852,7 @@ class BenchmarkComparator:
             bh_returns.reindex(strat_returns.index).fillna(0).mean() - rf / 252
         )
         alpha_annualized = alpha * 252
+
         return {
             "strategy": {
                 "total_return_pct": (strategy_equity.iloc[-1] / initial_capital - 1) * 100,
@@ -819,7 +874,11 @@ class BenchmarkComparator:
             )[0, 1],
         }
 
+
+# ============================================================
 # REPORT PRINTER
+# ============================================================
+
 class ReportPrinter:
 
     @staticmethod
@@ -840,7 +899,8 @@ class ReportPrinter:
         print(f"  Total Return         : {results['total_return_pct']:>14.2f}%")
         print(f"  Annualized Return    : {results['annualized_return_pct']:>14.2f}%")
         if results.get("aborted_early"):
-            print(f"  Strategy aborted early (max drawdown limit hit)")
+            print(f"  ⚠️  Strategy aborted early (max drawdown limit hit)")
+
         print(f"\n{'RISK-ADJUSTED METRICS':^65}")
         print(sep)
         print(f"  Sharpe Ratio         : {results['sharpe_ratio']:>15.4f}")
@@ -890,6 +950,7 @@ class ReportPrinter:
         print(sep)
         for reason, count in results.get("exit_reasons", {}).items():
             print(f"  {reason:<25}: {count:>5}")
+
         print(f"\n{'REGIME BREAKDOWN':^65}")
         print(sep)
         for regime, stats in results.get("regime_breakdown", {}).items():
@@ -910,6 +971,7 @@ class ReportPrinter:
             print(f"  Beta                 : {bench['beta']:.4f}")
             print(f"  Information Ratio    : {bench['information_ratio']:.4f}")
             print(f"  Benchmark Corr.      : {bench['correlation_with_benchmark']:.4f}")
+
         if mc_results:
             print(f"\n{'MONTE CARLO ({} sims)'.format(mc_results['n_simulations']):^65}")
             print(sep)
@@ -935,8 +997,12 @@ class ReportPrinter:
 
         print(f"\n{SEP}\n")
 
-# BUILT-IN EXAMPLE STRATEGIES (plug-and-play)
 
+# ============================================================
+# BUILT-IN PROFESSIONAL STRATEGIES (plug-and-play)
+# ============================================================
+
+# ── 1. RSI Mean-Reversion ────────────────────────────────────
 
 def rsi_mean_reversion_signal(df: pd.DataFrame, i: int,
                                oversold: float = 30,
@@ -950,19 +1016,31 @@ def rsi_mean_reversion_signal(df: pd.DataFrame, i: int,
         return PositionSide.SHORT
     return None
 
+
+# ── 2. MACD Crossover ────────────────────────────────────────
+
 def macd_crossover_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
-    if i < 1 or 'MACD' not in df.columns or 'MACD_signal' not in df.columns:
+    for col in ['MACD_signal', 'MACD_Signal']:
+        if col in df.columns:
+            sig_col = col
+            break
+    else:
+        return None
+    if i < 1 or 'MACD' not in df.columns:
         return None
     macd_prev = df['MACD'].iloc[i - 1]
-    sig_prev = df['MACD_signal'].iloc[i - 1]
-    macd_cur = df['MACD'].iloc[i]
-    sig_cur = df['MACD_signal'].iloc[i]
+    sig_prev  = df[sig_col].iloc[i - 1]
+    macd_cur  = df['MACD'].iloc[i]
+    sig_cur   = df[sig_col].iloc[i]
 
     if macd_prev <= sig_prev and macd_cur > sig_cur:
         return PositionSide.LONG
     elif macd_prev >= sig_prev and macd_cur < sig_cur:
         return PositionSide.SHORT
     return None
+
+
+# ── 3. SMA Trend ─────────────────────────────────────────────
 
 def sma_trend_signal(df: pd.DataFrame, i: int,
                      fast: int = 20, slow: int = 50) -> Optional[PositionSide]:
@@ -975,6 +1053,10 @@ def sma_trend_signal(df: pd.DataFrame, i: int,
     elif df[fast_col].iloc[i] < df[slow_col].iloc[i]:
         return PositionSide.SHORT
     return None
+
+
+# ── 4. Bollinger Band Breakout ───────────────────────────────
+
 def bollinger_breakout_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
     if i < 1 or 'BB_Upper' not in df.columns:
         return None
@@ -985,7 +1067,244 @@ def bollinger_breakout_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide
         return PositionSide.SHORT
     return None
 
+
+# ── 5. Stochastic Oscillator ─────────────────────────────────
+
+def stochastic_signal(df: pd.DataFrame, i: int,
+                      oversold: float = 20, overbought: float = 80) -> Optional[PositionSide]:
+    """Stochastic %K/%D crossover with overbought/oversold zones."""
+    if i < 2:
+        return None
+    k_col = '%K' if '%K' in df.columns else 'Stoch_K'
+    d_col = '%D' if '%D' in df.columns else 'Stoch_D'
+    if k_col not in df.columns or d_col not in df.columns:
+        return None
+
+    k_cur, d_cur = df[k_col].iloc[i], df[d_col].iloc[i]
+    k_prev, d_prev = df[k_col].iloc[i-1], df[d_col].iloc[i-1]
+
+    # bullish: %K crosses above %D in oversold zone
+    if k_prev <= d_prev and k_cur > d_cur and k_cur < oversold + 10:
+        return PositionSide.LONG
+    # bearish: %K crosses below %D in overbought zone
+    elif k_prev >= d_prev and k_cur < d_cur and k_cur > overbought - 10:
+        return PositionSide.SHORT
+    return None
+
+
+# ── 6. ADX Trend Strength ────────────────────────────────────
+
+def adx_trend_signal(df: pd.DataFrame, i: int,
+                     threshold: float = 25) -> Optional[PositionSide]:
+    """Enter trend when ADX confirms strong direction."""
+    if i < 2 or 'ADX' not in df.columns:
+        return None
+    adx = df['ADX'].iloc[i]
+    if adx < threshold:
+        return None  # no trend, stay flat
+
+    # use MACD or SMA for direction
+    if 'MACD' in df.columns:
+        return PositionSide.LONG if df['MACD'].iloc[i] > 0 else PositionSide.SHORT
+
+    close = df['Close'].iloc[i]
+    sma = df.get('SMA_20', pd.Series([close])).iloc[min(i, len(df)-1)]
+    return PositionSide.LONG if close > sma else PositionSide.SHORT
+
+
+# ── 7. VWAP Reversion ────────────────────────────────────────
+
+def vwap_signal(df: pd.DataFrame, i: int,
+                deviation_pct: float = 0.02) -> Optional[PositionSide]:
+    """Mean-revert to VWAP when price deviates significantly."""
+    if i < 1 or 'VWAP' not in df.columns:
+        return None
+    close = df['Close'].iloc[i]
+    vwap = df['VWAP'].iloc[i]
+    if vwap == 0:
+        return None
+
+    deviation = (close - vwap) / vwap
+    if deviation < -deviation_pct:
+        return PositionSide.LONG   # price below VWAP → buy
+    elif deviation > deviation_pct:
+        return PositionSide.SHORT  # price above VWAP → sell
+    return None
+
+
+# ── 8. CCI Momentum ──────────────────────────────────────────
+
+def cci_signal(df: pd.DataFrame, i: int,
+               lower: float = -100, upper: float = 100) -> Optional[PositionSide]:
+    """Commodity Channel Index momentum strategy."""
+    if i < 2 or 'CCI' not in df.columns:
+        return None
+    cci_cur = df['CCI'].iloc[i]
+    cci_prev = df['CCI'].iloc[i-1]
+
+    # bullish: CCI crosses above -100 from below
+    if cci_prev <= lower and cci_cur > lower:
+        return PositionSide.LONG
+    # bearish: CCI crosses below +100 from above
+    elif cci_prev >= upper and cci_cur < upper:
+        return PositionSide.SHORT
+    return None
+
+
+# ── 9. OBV Divergence ────────────────────────────────────────
+
+def obv_divergence_signal(df: pd.DataFrame, i: int,
+                          lookback: int = 20) -> Optional[PositionSide]:
+    """Detect OBV-price divergence (volume leads price)."""
+    if i < lookback + 1 or 'OBV' not in df.columns:
+        return None
+
+    price_chg = df['Close'].iloc[i] - df['Close'].iloc[i - lookback]
+    obv_chg = df['OBV'].iloc[i] - df['OBV'].iloc[i - lookback]
+
+    # bullish divergence: price down but OBV up
+    if price_chg < 0 and obv_chg > 0:
+        return PositionSide.LONG
+    # bearish divergence: price up but OBV down
+    elif price_chg > 0 and obv_chg < 0:
+        return PositionSide.SHORT
+    return None
+
+
+# ── 10. Triple EMA (TEMA) ────────────────────────────────────
+
+def triple_ema_signal(df: pd.DataFrame, i: int) -> Optional[PositionSide]:
+    """Triple EMA crossover: EMA8 × EMA21 × EMA55."""
+    if i < 2:
+        return None
+    close = df['Close']
+
+    for col, span in [('_ema8', 8), ('_ema21', 21), ('_ema55', 55)]:
+        if col not in df.columns:
+            df[col] = close.ewm(span=span, adjust=False).mean()
+
+    e8, e21, e55 = df['_ema8'].iloc[i], df['_ema21'].iloc[i], df['_ema55'].iloc[i]
+
+    if e8 > e21 > e55:
+        return PositionSide.LONG
+    elif e8 < e21 < e55:
+        return PositionSide.SHORT
+    return None
+
+
+# ── 11. Mean Reversion Z-Score ───────────────────────────────
+
+def zscore_mean_reversion_signal(df: pd.DataFrame, i: int,
+                                  window: int = 20,
+                                  entry_z: float = 2.0,
+                                  exit_z: float = 0.5) -> Optional[PositionSide]:
+    """Enter when Z-score exceeds threshold, exit near mean."""
+    if i < window + 1:
+        return None
+
+    close = df['Close'].iloc[i]
+    mu = df['Close'].iloc[i-window:i].mean()
+    sigma = df['Close'].iloc[i-window:i].std()
+    if sigma < 1e-8:
+        return None
+
+    z = (close - mu) / sigma
+
+    if z < -entry_z:
+        return PositionSide.LONG     # oversold
+    elif z > entry_z:
+        return PositionSide.SHORT    # overbought
+    elif abs(z) < exit_z:
+        return PositionSide.FLAT     # back to mean → flatten
+    return None
+
+
+# ── 12. Donchian Channel Breakout ────────────────────────────
+
+def donchian_breakout_signal(df: pd.DataFrame, i: int,
+                              period: int = 20) -> Optional[PositionSide]:
+    """Turtle-style Donchian channel breakout."""
+    if i < period + 1:
+        return None
+
+    high_n = df['High'].iloc[i-period:i].max()
+    low_n  = df['Low'].iloc[i-period:i].min()
+    close  = df['Close'].iloc[i]
+
+    if close > high_n:
+        return PositionSide.LONG
+    elif close < low_n:
+        return PositionSide.SHORT
+    return None
+
+
+# ── 13. Composite Multi-Indicator ────────────────────────────
+
+def composite_signal(df: pd.DataFrame, i: int,
+                     min_score: int = 3) -> Optional[PositionSide]:
+    """
+    Scores multiple indicators and requires consensus.
+    Score range: -5 (strong sell) to +5 (strong buy).
+    """
+    if i < 2:
+        return None
+
+    score = 0
+    close = df['Close'].iloc[i]
+
+    # RSI
+    rsi = df['RSI'].iloc[i] if 'RSI' in df.columns else 50
+    if rsi < 30: score += 1
+    elif rsi > 70: score -= 1
+
+    # MACD
+    if 'MACD' in df.columns:
+        macd = df['MACD'].iloc[i]
+        score += 1 if macd > 0 else -1
+
+    # SMA trend
+    if 'SMA_20' in df.columns:
+        score += 1 if close > df['SMA_20'].iloc[i] else -1
+
+    # BB position
+    if 'BB_Lower' in df.columns:
+        if close < df['BB_Lower'].iloc[i]: score += 1
+        elif close > df['BB_Upper'].iloc[i]: score -= 1
+
+    # ADX trend strength
+    if 'ADX' in df.columns and df['ADX'].iloc[i] > 25:
+        score = int(score * 1.5)  # amplify signal in trends
+
+    if score >= min_score:
+        return PositionSide.LONG
+    elif score <= -min_score:
+        return PositionSide.SHORT
+    return None
+
+
+# ── Strategy Registry ────────────────────────────────────────
+
+STRATEGY_REGISTRY = {
+    "rsi_mean_reversion":  rsi_mean_reversion_signal,
+    "macd_crossover":      macd_crossover_signal,
+    "sma_trend":           sma_trend_signal,
+    "bollinger_breakout":  bollinger_breakout_signal,
+    "stochastic":          stochastic_signal,
+    "adx_trend":           adx_trend_signal,
+    "vwap_reversion":      vwap_signal,
+    "cci_momentum":        cci_signal,
+    "obv_divergence":      obv_divergence_signal,
+    "triple_ema":          triple_ema_signal,
+    "zscore_reversion":    zscore_mean_reversion_signal,
+    "donchian_breakout":   donchian_breakout_signal,
+    "composite":           composite_signal,
+}
+
+
+# ============================================================
 # QUICK-START RUNNER
+# ============================================================
+
 def run_full_analysis(df: pd.DataFrame,
                       signal_func: Callable,
                       signal_kwargs: dict = None,
@@ -1021,7 +1340,6 @@ def run_full_analysis(df: pd.DataFrame,
         mc_results = mc.run(results['trades'], config.initial_capital)
 
     wf_results = None
-
     if run_walk_forward and param_grid:
         print(">> Running Walk-Forward Optimization...")
         wf = WalkForwardOptimizer(config, n_splits=5)
@@ -1036,14 +1354,54 @@ def run_full_analysis(df: pd.DataFrame,
         "walk_forward": wf_results,
     }
 
+
+# ============================================================
+# STRATEGY BENCHMARK — Run all strategies head-to-head
+# ============================================================
+
+class StrategyBenchmark:
+    """Run every registered strategy and rank by Sharpe / return."""
+
+    def __init__(self, config: BacktestConfig = None):
+        self.config = config or BacktestConfig()
+
+    def run_all(self, df: pd.DataFrame,
+                strategies: dict = None) -> pd.DataFrame:
+        strategies = strategies or STRATEGY_REGISTRY
+        rows = []
+
+        for name, func in strategies.items():
+            try:
+                bt = Backtester(self.config)
+                res = bt.run(df, func)
+                rows.append({
+                    "strategy": name,
+                    "return_pct": round(res["total_return_pct"], 2),
+                    "sharpe": round(res["sharpe_ratio"], 3),
+                    "sortino": round(res["sortino_ratio"], 3),
+                    "max_dd_pct": round(res["max_drawdown_pct"], 2),
+                    "win_rate": round(res["win_rate_pct"], 1),
+                    "profit_factor": round(res["profit_factor"], 3),
+                    "trades": res["total_trades"],
+                })
+            except Exception as e:
+                rows.append({"strategy": name, "return_pct": np.nan, "error": str(e)})
+
+        result_df = pd.DataFrame(rows).sort_values("sharpe", ascending=False, na_position="last")
+        return result_df.reset_index(drop=True)
+
+
+# ============================================================
 # EXAMPLE USAGE
+# ============================================================
+
 if __name__ == "__main__":
     """
     Drop-in example. Replace `df` with your real OHLCV + indicators DataFrame.
     Your indicators.py add_all_indicators(df) populates the needed columns.
     """
 
-    # Generate synthetic OHLCV for demo 
+    # -- Generate synthetic OHLCV for demo --
     np.random.seed(42)
     n = 1000
     dates = pd.date_range("2021-01-01", periods=n, freq="B")
@@ -1056,19 +1414,25 @@ if __name__ == "__main__":
         "Volume": np.random.randint(100_000, 1_000_000, n),
     }, index=dates)
 
-    # Apply your indicators 
-    # from indicators import add_all_indicators
-    # df = add_all_indicators(df)
-
-    # Manual minimal indicators for demo
+    # -- Indicators for all strategies --
     df['SMA_20'] = df['Close'].rolling(20).mean()
     df['SMA_50'] = df['Close'].rolling(50).mean()
-    df['RSI']    = 50 + np.random.normal(0, 15, n)   # placeholder
-    df['MACD']         = np.random.normal(0, 2, n)
-    df['MACD_signal']  = np.random.normal(0, 2, n)
+    df['RSI']    = 50 + np.random.normal(0, 15, n)
+    df['RSI'] = df['RSI'].clip(10, 90)
+    e12 = df['Close'].ewm(span=12).mean()
+    e26 = df['Close'].ewm(span=26).mean()
+    df['MACD'] = e12 - e26
+    df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
     df['BB_Upper'] = df['SMA_20'] + 2 * df['Close'].rolling(20).std()
     df['BB_Lower'] = df['SMA_20'] - 2 * df['Close'].rolling(20).std()
-    df['ATR']    = (df['High'] - df['Low']).rolling(14).mean()
+    df['ATR'] = (df['High'] - df['Low']).rolling(14).mean()
+    df['ADX'] = 25 + np.random.normal(0, 8, n)
+    df['%K'] = 50 + np.random.normal(0, 20, n)
+    df['%D'] = df['%K'].rolling(3).mean()
+    df['OBV'] = (np.sign(df['Close'].diff()).fillna(0) * df['Volume']).cumsum()
+    tp = (df['High']+df['Low']+df['Close'])/3
+    df['VWAP'] = (tp*df['Volume']).cumsum() / df['Volume'].cumsum()
+    df['CCI'] = (tp - tp.rolling(20).mean()) / (0.015 * tp.rolling(20).std() + 1e-9)
     df.dropna(inplace=True)
 
     config = BacktestConfig(
@@ -1084,11 +1448,24 @@ if __name__ == "__main__":
         risk_free_rate    = 0.06,
     )
 
+    # -- Benchmark all strategies --
+    print("\n" + "=" * 75)
+    print("  STRATEGY BENCHMARK — 13 Built-in Strategies")
+    print("=" * 75)
+
+    bench = StrategyBenchmark(config)
+    ranking = bench.run_all(df)
+    print(ranking.to_string(index=False))
+
+    # -- Full analysis on best strategy --
+    best_name = ranking.iloc[0]["strategy"]
+    print(f"\n>> Running full analysis on best strategy: {best_name}")
+
     full = run_full_analysis(
         df            = df,
-        signal_func   = macd_crossover_signal,
+        signal_func   = STRATEGY_REGISTRY[best_name],
         config        = config,
-        run_walk_forward = True,
+        run_walk_forward = False,
         run_monte_carlo  = True,
-        param_grid    = None,   # pass dict to enable WFO grid search
+        param_grid    = None,
     )
