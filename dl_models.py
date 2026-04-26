@@ -7,8 +7,10 @@ import pandas as pd
 from typing import Optional, Tuple, Dict, List, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+
 warnings.filterwarnings("ignore")
 
+# ── PyTorch (graceful fallback) ──────────────────────────────────────────────
 try:
     import torch
     import torch.nn as nn
@@ -22,6 +24,8 @@ except ImportError:
     _TORCH = False
     DEVICE = None
     print("[dl_models] PyTorch not found — pip install torch")
+
+# ── scikit-learn (graceful fallback) ─────────────────────────────────────────
 try:
     from sklearn.preprocessing import RobustScaler
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -30,7 +34,10 @@ except ImportError:
     _SKL = False
     print("[dl_models] scikit-learn not found — pip install scikit-learn")
 
-# CONFIG
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CONFIG
+# ══════════════════════════════════════════════════════════════════════════════
 
 class ModelType(Enum):
     LSTM      = "lstm"
@@ -41,7 +48,8 @@ class ModelType(Enum):
 @dataclass
 class DLConfig:
     """Central configuration for all deep-learning models."""
-    # Data 
+
+    # ── Data ──────────────────────────────────────────────────────────────────
     seq_len:          int   = 60          # lookback window (bars)
     forecast_horizon: int   = 5           # how many bars ahead to predict
     target:           str   = "returns"   # "returns" | "close" | "log_returns"
@@ -49,7 +57,7 @@ class DLConfig:
     train_ratio:      float = 0.70
     val_ratio:        float = 0.15        # test = 1 - train - val
 
-    #Training 
+    # ── Training ──────────────────────────────────────────────────────────────
     batch_size:       int   = 64
     epochs:           int   = 100
     lr:               float = 1e-3
@@ -59,21 +67,22 @@ class DLConfig:
     dropout:          float = 0.2
     model_dir:        str   = "./models"
 
-    # LSTM 
+    # ── LSTM ──────────────────────────────────────────────────────────────────
     lstm_hidden:      int   = 128
     lstm_layers:      int   = 2
     lstm_bidir:       bool  = True
 
-    #TCN 
+    # ── TCN ───────────────────────────────────────────────────────────────────
     tcn_channels:     List[int] = field(default_factory=lambda: [64, 128, 128, 64])
     tcn_kernel:       int   = 3
     tcn_dilations:    List[int] = field(default_factory=lambda: [1, 2, 4, 8, 16])
 
-    # TFT 
+    # ── TFT ───────────────────────────────────────────────────────────────────
     tft_d_model:      int   = 64
     tft_n_heads:      int   = 4
     tft_n_layers:     int   = 2
     tft_quantiles:    List[float] = field(default_factory=lambda: [0.1, 0.5, 0.9])
+
 
 CONFIG = DLConfig()
 
@@ -87,7 +96,10 @@ CURATED_FEATURES = [
     "Realized_Vol_21", "Z_Score_20",
 ]
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  FEATURE ENGINEER
+# ══════════════════════════════════════════════════════════════════════════════
 
 class DLFeatureEngineer:
     """
@@ -99,13 +111,14 @@ class DLFeatureEngineer:
         eng = DLFeatureEngineer(cfg)
         X, y, scaler = eng.build(df)
     """
+
     def __init__(self, cfg: DLConfig = None):
         self.cfg    = cfg or DLConfig()
         self.scaler: Optional[RobustScaler] = None
         self.feature_cols: List[str] = []
         self.target_idx:   int = 0        # index of target col in feature matrix
 
-    # public 
+    # ── public ────────────────────────────────────────────────────────────────
 
     def build(self, df: pd.DataFrame,
               fit_scaler: bool = True) -> Tuple[np.ndarray, np.ndarray, List[str]]:
@@ -122,6 +135,9 @@ class DLFeatureEngineer:
         data = self._select_features(df)
         data = self._add_time_features(data, df)
         data = data.dropna()
+
+        if len(data) == 0:
+            raise ValueError("Not enough valid data points to train the DL model. Try a longer timeframe.")
 
         self.feature_cols = list(data.columns)
 
@@ -160,7 +176,7 @@ class DLFeatureEngineer:
         data = data[self.feature_cols]
         return self.scaler.transform(data.values.astype(np.float32))
 
-    # private 
+    # ── private ───────────────────────────────────────────────────────────────
 
     def _target_col(self) -> str:
         mapping = {"returns": "Returns", "log_returns": "Log_Returns", "close": "Close"}
@@ -200,7 +216,10 @@ class DLFeatureEngineer:
 
         return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  PYTORCH DATASET
+# ══════════════════════════════════════════════════════════════════════════════
 
 class TimeSeriesDataset(Dataset):
     """Minimal wrapper around numpy arrays for DataLoader."""
@@ -214,7 +233,10 @@ class TimeSeriesDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  MODEL 1 — BIDIRECTIONAL LSTM WITH ATTENTION
+# ══════════════════════════════════════════════════════════════════════════════
 
 class LSTMAttention(nn.Module if _TORCH else object):
     """
@@ -267,7 +289,10 @@ class LSTMAttention(nn.Module if _TORCH else object):
         context = self.drop(self.norm(context))
         return self.head(context), weight.squeeze(-1)   # (B, H), (B, T)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  MODEL 2 — TEMPORAL CONVOLUTIONAL NETWORK (TCN)
+# ══════════════════════════════════════════════════════════════════════════════
 
 class _CausalConv1d(nn.Module if _TORCH else object):
     """Causal (left-padded) dilated convolution."""
@@ -281,6 +306,7 @@ class _CausalConv1d(nn.Module if _TORCH else object):
 
     def forward(self, x):
         return self.conv(x)[:, :, :-self.padding] if self.padding else self.conv(x)
+
 
 class _TCNBlock(nn.Module if _TORCH else object):
     """Single TCN residual block with two dilated causal convolutions."""
@@ -298,7 +324,7 @@ class _TCNBlock(nn.Module if _TORCH else object):
         self.downsample = nn.Conv1d(in_ch, out_ch, 1) if in_ch != out_ch else None
         self.norm = nn.LayerNorm(out_ch)
 
-        def forward(self, x):
+    def forward(self, x):
         res = x if self.downsample is None else self.downsample(x)
         out = self.net(x) + res
         # LayerNorm over channel dim: transpose → norm → transpose
@@ -325,6 +351,7 @@ class TCNModel(nn.Module if _TORCH else object):
     Receptive field = 1 + 2 * (kernel-1) * (2^n_layers - 1)
     For kernel=3, 5 dilations: RF = 97 bars  ✓
     """
+
     def __init__(self, n_features: int, cfg: DLConfig):
         super().__init__()
         self.cfg = cfg
@@ -357,7 +384,10 @@ class TCNModel(nn.Module if _TORCH else object):
         x = x.mean(dim=-1)              # (B, C)   — global avg pool
         return self.head(x), None       # (B, horizon), no attention
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  MODEL 3 — TEMPORAL FUSION TRANSFORMER (TFT)
+# ══════════════════════════════════════════════════════════════════════════════
 
 class _GRN(nn.Module if _TORCH else object):
     """Gated Residual Network — core building block of TFT."""
@@ -418,6 +448,7 @@ class TFTModel(nn.Module if _TORCH else object):
     ├─ Pool last H positions or global
     └─ Quantile output head (3 quantiles)  →  (B, H, 3)  or point (B, H)
     """
+
     def __init__(self, n_features: int, cfg: DLConfig):
         super().__init__()
         self.cfg  = cfg
@@ -432,6 +463,7 @@ class TFTModel(nn.Module if _TORCH else object):
                                 batch_first=True, dropout=drop if cfg.tft_n_layers > 1 else 0.0)
         self.gate_enc = nn.Sequential(nn.Linear(d, d), nn.Sigmoid())
         self.norm_enc = nn.LayerNorm(d)
+
         attn_layer = nn.TransformerEncoderLayer(
             d_model=d, nhead=nh, dim_feedforward=d * 4,
             dropout=drop, activation="gelu", batch_first=True,
@@ -465,7 +497,11 @@ class TFTModel(nn.Module if _TORCH else object):
         preds    = preds.view(-1, self.H, self.nq)  # (B, H, nq)
         return preds, vsn_w                        # (B, H, nq), (B, T, F)
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  LOSSES
+# ══════════════════════════════════════════════════════════════════════════════
+
 def quantile_loss(preds: "torch.Tensor",
                   target: "torch.Tensor",
                   quantiles: List[float]) -> "torch.Tensor":
@@ -479,6 +515,8 @@ def quantile_loss(preds: "torch.Tensor",
     errors = target - preds
     loss   = torch.max((q - 1) * errors, q * errors)
     return loss.mean()
+
+
 def directional_accuracy(pred: np.ndarray, actual: np.ndarray) -> float:
     """% of time the sign of predicted change matches actual change."""
     if len(pred) < 2:
@@ -487,7 +525,11 @@ def directional_accuracy(pred: np.ndarray, actual: np.ndarray) -> float:
     actual_dir = np.sign(np.diff(actual, axis=0))
     return float(np.mean(pred_dir == actual_dir)) * 100
 
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  TRAINER
+# ══════════════════════════════════════════════════════════════════════════════
+
 @dataclass
 class TrainingResult:
     model_type:   str
@@ -544,7 +586,7 @@ class DLTrainer:
         self.model_type = model_type
         cfg = self.cfg
 
-        # Feature engineering 
+        # ── 1. Feature engineering ────────────────────────────────────────────
         X, y, cols = self.eng.build(df, fit_scaler=True)
         n_features  = X.shape[2]
         n           = len(X)
@@ -558,10 +600,16 @@ class DLTrainer:
 
         train_dl = DataLoader(TimeSeriesDataset(X_tr, y_tr),
                               batch_size=cfg.batch_size, shuffle=True,  drop_last=True)
+        if len(train_dl) == 0:
+            train_dl = DataLoader(TimeSeriesDataset(X_tr, y_tr),
+                                  batch_size=cfg.batch_size, shuffle=True,  drop_last=False)
+        if len(train_dl) == 0:
+            raise ValueError("Not enough data to train. Please decrease sequence length or provide more historical data.")
+
         val_dl   = DataLoader(TimeSeriesDataset(X_va, y_va),
                               batch_size=cfg.batch_size, shuffle=False, drop_last=False)
 
-        # Build model 
+        # ── 2. Build model ────────────────────────────────────────────────────
         self.model = self._build_model(model_type, n_features).to(DEVICE)
         n_params   = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         print(f"\n[{model_type.value.upper()}] Parameters: {n_params:,} | Device: {DEVICE}")
@@ -572,7 +620,7 @@ class DLTrainer:
                                epochs=cfg.epochs, pct_start=0.3)
         is_tft = model_type == ModelType.TFT
 
-        # Training loop
+        # ── 3. Training loop ──────────────────────────────────────────────────
         train_losses, val_losses = [], []
         best_val, patience_ctr   = float("inf"), 0
         best_epoch               = 0
@@ -597,18 +645,19 @@ class DLTrainer:
                 if patience_ctr >= cfg.patience:
                     print(f"  Early stop at epoch {epoch} (best={best_epoch})")
                     break
+
             if epoch % 10 == 0 or epoch == 1:
                 print(f"  Epoch {epoch:>4}/{cfg.epochs} | "
                       f"train={tr_loss:.5f}  val={vl_loss:.5f}  "
                       f"best_val={best_val:.5f}")
 
-        # Restore best & evaluate
+        # ── 4. Restore best & evaluate ────────────────────────────────────────
         if self._best_state:
             self.model.load_state_dict({k: v.to(DEVICE) for k, v in self._best_state.items()})
 
         metrics = self._evaluate(X_te, y_te, is_tft)
 
-        # Save model
+        # ── 5. Save model ─────────────────────────────────────────────────────
         path = self._save(model_type, n_features)
 
         return TrainingResult(
@@ -621,6 +670,7 @@ class DLTrainer:
             duration_sec = time.time() - t0,
             n_params     = n_params,
         )
+
     def predict(self, df: pd.DataFrame,
                 return_attention: bool = False) -> Dict:
         """
@@ -686,7 +736,7 @@ class DLTrainer:
         self.model.eval()
         print(f"[load] {model_type.value} loaded from {path}")
 
-    # private helpers 
+    # ── private helpers ───────────────────────────────────────────────────────
 
     def _build_model(self, model_type: ModelType, n_features: int) -> "nn.Module":
         cfg = self.cfg
@@ -767,7 +817,7 @@ class DLTrainer:
             "directional_accuracy": round(da, 2),
             "n_test_samples": len(preds),
         }
-        print(f"\n── Test Metrics ({self.model_type.value.upper()}) ──────────────────")
+        print(f"\n-- Test Metrics ({self.model_type.value.upper()}) ------------------")
         for k, v in metrics.items():
             print(f"  {k:<26}: {v}")
         return metrics
@@ -777,5 +827,308 @@ class DLTrainer:
         fname = os.path.join(self.cfg.model_dir,
                              f"{model_type.value}_f{n_features}_h{self.cfg.forecast_horizon}.pt")
         torch.save(self.model.state_dict(), fname)
-        print(f"\n[save] Model saved → {fname}")
+        print(f"\n[save] Model saved -> {fname}")
         return fname
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ENSEMBLE TRAINER
+# ══════════════════════════════════════════════════════════════════════════════
+
+class EnsembleTrainer:
+    """
+    Trains all three base models and combines their predictions via
+    weighted averaging (weights learned on the validation set).
+
+    Usage
+    -----
+        ens = EnsembleTrainer(cfg)
+        results = ens.train_all(df, progress_cb=None)
+        preds   = ens.predict(df)
+    """
+
+    def __init__(self, cfg: DLConfig = None):
+        self.cfg      = cfg or DLConfig()
+        self.trainers = {
+            ModelType.LSTM: DLTrainer(cfg),
+            ModelType.TCN:  DLTrainer(cfg),
+            ModelType.TFT:  DLTrainer(cfg),
+        }
+        self.weights  = {ModelType.LSTM: 1/3, ModelType.TCN: 1/3, ModelType.TFT: 1/3}
+        self.results: Dict[ModelType, TrainingResult] = {}
+
+    def train_all(self, df: pd.DataFrame,
+                  progress_cb: Optional[Callable] = None) -> Dict:
+        """Train all three models sequentially."""
+        all_results = {}
+        for mt, trainer in self.trainers.items():
+            print(f"\n{'='*60}")
+            print(f"  Training {mt.value.upper()}")
+            print(f"{'='*60}")
+            result = trainer.train(df, mt, progress_cb=progress_cb)
+            self.results[mt] = result
+            all_results[mt.value] = result
+        self._learn_weights(df)
+        return all_results
+
+    def predict(self, df: pd.DataFrame) -> Dict:
+        """Ensemble prediction: weighted average of all three models."""
+        all_preds = {}
+        for mt, trainer in self.trainers.items():
+            try:
+                p = trainer.predict(df)
+                all_preds[mt] = p
+            except Exception as e:
+                print(f"[Ensemble] {mt.value} predict failed: {e}")
+
+        if not all_preds:
+            raise RuntimeError("No models could predict")
+
+        # weighted combination
+        ref    = next(iter(all_preds.values()))
+        total  = sum(self.weights[mt] for mt in all_preds)
+        combo  = np.zeros_like(ref["forecast"])
+        for mt, p in all_preds.items():
+            combo += (self.weights[mt] / total) * p["forecast"]
+
+        return {
+            "forecast":   combo,
+            "quantiles":  None,
+            "attention":  None,
+            "per_model":  {mt.value: p["forecast"] for mt, p in all_preds.items()},
+            "weights":    {mt.value: self.weights[mt] for mt in all_preds},
+            "dates":      ref["dates"],
+        }
+
+    def _learn_weights(self, df: pd.DataFrame) -> None:
+        """Weight each model by its validation-set directional accuracy."""
+        da_scores = {}
+        for mt, res in self.results.items():
+            da = res.metrics.get("directional_accuracy", 50.0)
+            da_scores[mt] = max(da, 0.01)
+        total = sum(da_scores.values())
+        self.weights = {mt: s / total for mt, s in da_scores.items()}
+        print("\n[Ensemble] Learned weights:")
+        for mt, w in self.weights.items():
+            print(f"  {mt.value:<8}: {w:.3f}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SIGNAL GENERATOR
+# ══════════════════════════════════════════════════════════════════════════════
+
+class DLSignalGenerator:
+    """
+    Converts DL model forecasts into backtester-compatible signals.
+
+    Integrates with the existing Backtester via a dynamic signal function.
+
+    Signal logic (return-based target)
+    ───────────────────────────────────
+    - Predicted cumulative return over horizon > +threshold  → LONG
+    - Predicted cumulative return over horizon < -threshold  → SHORT
+    - Otherwise                                              → FLAT (hold)
+    """
+
+    def __init__(self, trainer: "DLTrainer | EnsembleTrainer",
+                 threshold: float = 0.005,
+                 use_quantile_filter: bool = True):
+        self.trainer    = trainer
+        self.threshold  = threshold
+        self.use_qf     = use_quantile_filter
+        self._last_pred: Optional[Dict] = None
+        self._last_bar:  int = -1
+
+    def make_signal_func(self, df: pd.DataFrame) -> Callable:
+        """
+        Returns a callable compatible with Backtester.run(df, signal_func).
+
+        The function caches predictions and re-infers every forecast_horizon bars
+        to avoid re-running the model on every single bar.
+        """
+        cfg    = self.trainer.cfg if hasattr(self.trainer, "cfg") else DLConfig()
+        H      = cfg.forecast_horizon
+        engine = self
+
+        def signal_func(df_bt: pd.DataFrame, i: int):
+            # lazy import to avoid circular
+            try:
+                from backtester import PositionSide
+            except ImportError:
+                return None
+
+            if i < cfg.seq_len:
+                return None
+
+            # re-predict every H bars
+            if engine._last_bar == -1 or (i - engine._last_bar) >= H:
+                try:
+                    sub = df_bt.iloc[:i + 1]
+                    engine._last_pred = engine.trainer.predict(sub)
+                    engine._last_bar  = i
+                except Exception:
+                    return None
+
+            pred = engine._last_pred
+            if pred is None:
+                return None
+
+            fcast = pred["forecast"]
+            cum_ret = float(np.sum(fcast))
+
+            # TFT quantile filter: only trade if downside q10 confirms direction
+            if engine.use_qf and pred.get("quantiles") is not None:
+                q_lo = float(pred["quantiles"][:, 0].sum())
+                q_hi = float(pred["quantiles"][:, 2].sum())
+                if cum_ret > engine.threshold and q_lo < 0:
+                    return None       # uncertain — skip long
+                if cum_ret < -engine.threshold and q_hi > 0:
+                    return None       # uncertain — skip short
+
+            if cum_ret > engine.threshold:
+                return PositionSide.LONG
+            elif cum_ret < -engine.threshold:
+                return PositionSide.SHORT
+            return PositionSide.FLAT
+
+        return signal_func
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MODEL REGISTRY  — Streamlit helper
+# ══════════════════════════════════════════════════════════════════════════════
+
+class DLModelRegistry:
+    """
+    Keeps track of trained models within a Streamlit session.
+    Store in st.session_state["dl_registry"].
+    """
+
+    def __init__(self):
+        self.trainers: Dict[str, "DLTrainer | EnsembleTrainer"] = {}
+        self.results:  Dict[str, TrainingResult] = {}
+
+    def register(self, key: str,
+                 trainer: "DLTrainer | EnsembleTrainer",
+                 result: TrainingResult):
+        self.trainers[key] = trainer
+        self.results[key]  = result
+
+    def get(self, key: str) -> Optional["DLTrainer | EnsembleTrainer"]:
+        return self.trainers.get(key)
+
+    def list_models(self) -> List[str]:
+        return list(self.trainers.keys())
+
+    def is_trained(self, key: str) -> bool:
+        return key in self.trainers
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DIAGNOSTICS  — standalone test
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _generate_synthetic_df(n: int = 500) -> pd.DataFrame:
+    """Generate a minimal synthetic OHLCV + indicator DataFrame for testing."""
+    np.random.seed(42)
+    dates  = pd.date_range("2021-01-01", periods=n, freq="B")
+    close  = 1000 * np.exp(np.cumsum(np.random.normal(0.0003, 0.015, n)))
+    df = pd.DataFrame({
+        "Open":         close * (1 + np.random.normal(0, 0.002, n)),
+        "High":         close * (1 + np.abs(np.random.normal(0, 0.008, n))),
+        "Low":          close * (1 - np.abs(np.random.normal(0, 0.008, n))),
+        "Close":        close,
+        "Volume":       np.random.randint(100_000, 1_000_000, n).astype(float),
+    }, index=dates)
+    ret = df["Close"].pct_change()
+    df["Returns"]       = ret
+    df["Log_Returns"]   = np.log(df["Close"] / df["Close"].shift(1))
+    df["HL_Spread"]     = (df["High"] - df["Low"]) / df["Close"]
+    df["SMA_20"]        = df["Close"].rolling(20).mean()
+    df["EMA_21"]        = df["Close"].ewm(span=21).mean()
+    e12 = df["Close"].ewm(span=12).mean()
+    e26 = df["Close"].ewm(span=26).mean()
+    df["MACD"]          = e12 - e26
+    df["MACD_Signal"]   = df["MACD"].ewm(span=9).mean()
+    df["MACD_Hist"]     = df["MACD"] - df["MACD_Signal"]
+    d = df["Close"].diff()
+    gain = d.clip(lower=0).rolling(14).mean()
+    loss = (-d.clip(upper=0)).rolling(14).mean().replace(0, np.nan)
+    df["RSI"]           = 100 - (100 / (1 + gain / loss))
+    tr = pd.concat([df["High"]-df["Low"], (df["High"]-df["Close"].shift()).abs(),
+                    (df["Low"]-df["Close"].shift()).abs()], axis=1).max(axis=1)
+    df["ATR"]           = tr.rolling(14).mean()
+    up = df["High"].diff().clip(lower=0)
+    dn = (-df["Low"].diff()).clip(lower=0)
+    a14 = tr.rolling(14).mean()
+    dip = 100 * up.rolling(14).mean() / a14
+    din = 100 * dn.rolling(14).mean() / a14
+    df["DI_Pos"]        = dip
+    df["DI_Neg"]        = din
+    df["ADX"]           = (100*(dip-din).abs()/(dip+din+1e-9)).rolling(14).mean()
+    mid = df["Close"].rolling(20).mean(); std = df["Close"].rolling(20).std()
+    df["BB_Upper"]      = mid + 2 * std
+    df["BB_Lower"]      = mid - 2 * std
+    df["BB_Width"]      = (df["BB_Upper"] - df["BB_Lower"]) / mid
+    direction           = np.sign(df["Close"].diff()).fillna(0)
+    df["OBV"]           = (direction * df["Volume"]).cumsum()
+    tp = (df["High"] + df["Low"] + df["Close"]) / 3
+    df["VWAP"]          = (tp * df["Volume"]).cumsum() / df["Volume"].cumsum()
+    ma = tp.rolling(20).mean(); md_ = (tp - ma).abs().rolling(20).mean()
+    df["%K"]            = 100 * (df["Close"] - df["Low"].rolling(14).min()) / \
+                          (df["High"].rolling(14).max() - df["Low"].rolling(14).min() + 1e-9)
+    df["%D"]            = df["%K"].rolling(3).mean()
+    df["CCI"]           = (tp - ma) / (0.015 * md_ + 1e-9)
+    df["Realized_Vol_21"] = df["Log_Returns"].rolling(21).std() * np.sqrt(252)
+    df["Z_Score_20"]    = (df["Close"] - df["Close"].rolling(20).mean()) / \
+                          (df["Close"].rolling(20).std() + 1e-9)
+    return df.dropna()
+
+
+if __name__ == "__main__":
+    if not _TORCH:
+        print("Install PyTorch first:  pip install torch")
+        raise SystemExit(1)
+    if not _SKL:
+        print("Install scikit-learn:   pip install scikit-learn")
+        raise SystemExit(1)
+
+    print("\n" + "=" * 65)
+    print("  dl_models.py — Deep Learning Engine Self-Test")
+    print("=" * 65)
+
+    df = _generate_synthetic_df(600)
+    print(f"\n  Synthetic df: {len(df)} rows × {len(df.columns)} cols")
+    print(f"  Date range  : {df.index[0].date()} -> {df.index[-1].date()}")
+
+    cfg = DLConfig(epochs=30, seq_len=40, forecast_horizon=3, batch_size=32, patience=8)
+
+    for mt in [ModelType.LSTM, ModelType.TCN, ModelType.TFT]:
+        print(f"\n{'─'*65}")
+        print(f"  Testing {mt.value.upper()}")
+        print(f"{'─'*65}")
+        trainer = DLTrainer(cfg)
+        result  = trainer.train(df, mt)
+        pred    = trainer.predict(df)
+        print(f"\n  Forecast (next {cfg.forecast_horizon} bars): {pred['forecast'].round(5)}")
+        print(f"  Future dates: {list(pred['dates'].strftime('%Y-%m-%d'))}")
+        if pred.get("quantiles") is not None:
+            print(f"  Quantiles q10/q50/q90 (bar 1): {pred['quantiles'][0].round(5)}")
+        if pred.get("attention") is not None:
+            print(f"  Attention shape: {pred['attention'].shape}")
+        print(f"\n  Training time: {result.duration_sec:.1f}s  |  "
+              f"Best epoch: {result.best_epoch}  |  "
+              f"Params: {result.n_params:,}")
+
+    print("\n" + "=" * 65)
+    print("  Testing Ensemble")
+    print("=" * 65)
+    ens     = EnsembleTrainer(cfg)
+    all_res = ens.train_all(df)
+    ep      = ens.predict(df)
+    print(f"\n  Ensemble forecast: {ep['forecast'].round(5)}")
+    print(f"  Per-model forecasts:")
+    for k, v in ep["per_model"].items():
+        print(f"    {k:<8}: {v.round(5)}")
+    print(f"  Weights: {ep['weights']}")
+    print("\n  OK  All models passed self-test.\n")
