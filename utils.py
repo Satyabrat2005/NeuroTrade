@@ -1,7 +1,3 @@
-"""
-NeuroTrade — utils.py
-Compatible with app.py column expectations.
-"""
 
 import pandas as pd
 import numpy as np
