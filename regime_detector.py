@@ -37,6 +37,50 @@ class Regime(str, Enum):
 # Features consumed from the upstream indicators.py pipeline
 REQUIRED_FEATURES: list[str] = ["returns", "rsi", "volatility", "ma_diff"]
 
+# Mapping from capitalized indicator columns to regime detector features
+COLUMN_MAP = {
+    "Returns": "returns",
+    "RSI": "rsi",
+    "Realized_Vol_21": "volatility",
+    "ATR": "volatility",
+}
+
+
+def prepare_regime_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert an indicator-enriched OHLCV DataFrame into the feature
+    format expected by RegimeDetector.
+
+    Maps: Returns → returns, RSI → rsi,
+          Realized_Vol_21 or ATR → volatility,
+          SMA_20 diff → ma_diff.
+    """
+    out = pd.DataFrame(index=df.index)
+    if "Returns" in df.columns:
+        out["returns"] = df["Returns"]
+    elif "Close" in df.columns:
+        out["returns"] = df["Close"].pct_change()
+    else:
+        out["returns"] = 0.0
+
+    out["rsi"] = df["RSI"] if "RSI" in df.columns else 50.0
+
+    if "Realized_Vol_21" in df.columns:
+        out["volatility"] = df["Realized_Vol_21"]
+    elif "ATR" in df.columns:
+        out["volatility"] = df["ATR"] / (df["Close"] + 1e-9)
+    else:
+        out["volatility"] = out["returns"].rolling(21).std()
+
+    if "SMA_20" in df.columns:
+        out["ma_diff"] = (df["Close"] - df["SMA_20"]) / (df["SMA_20"] + 1e-9)
+    elif "EMA_20" in df.columns:
+        out["ma_diff"] = (df["Close"] - df["EMA_20"]) / (df["EMA_20"] + 1e-9)
+    else:
+        out["ma_diff"] = 0.0
+
+    return out
+
 # Default model backend
 DEFAULT_BACKEND: str = "kmeans"  # or "hmm"
 

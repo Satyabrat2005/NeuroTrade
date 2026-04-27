@@ -24,7 +24,7 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-from quantum_model import QuantumConfig, QuantumTrainer
+from quantum_models import QuantumConfig, QuantumTrainer
 try:
     print("Testing Quantum...")
     cfg3 = QuantumConfig(n_qubits=2, n_layers=1)

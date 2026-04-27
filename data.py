@@ -97,13 +97,6 @@ class OHLCVCleaner:
             "3. Low": "Low", "5. Volume": "Volume",
         }
         df.rename(columns=rename, inplace=True)
-        rename = {
-            "Adj Close": "Close", "Adjusted_Close": "Close",
-            "Adj_Close": "Close", "4. Close": "Close",
-            "1. Open": "Open", "2. High": "High",
-            "3. Low": "Low", "5. Volume": "Volume",
-        }
-        df.rename(columns=rename, inplace=True)
 
         # prefer Adj Close over Close when both exist
         if "Adj Close" in df.columns and "Close" in df.columns:
