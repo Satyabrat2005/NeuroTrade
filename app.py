@@ -162,163 +162,478 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Landing page gate ────────────────────────────────────────────────────────
+if "show_dashboard" not in st.session_state:
+    st.session_state.show_dashboard = False
+
+def _show_landing():
+    """Render the embedded landing page with a functional Try Now button."""
+    import pathlib
+    landing_path = pathlib.Path(__file__).parent / "landingpage.html"
+    if landing_path.exists():
+        html = landing_path.read_text(encoding="utf-8")
+        html = html.replace(
+            "window.location.href = '/';",
+            "window.parent.postMessage({type:'streamlit:setComponentValue',value:true},'*');"
+        )
+        st.components.v1.html(html, height=3000, scrolling=True)
+    if st.button("⚡ Launch Trading Terminal", use_container_width=True, key="landing_launch"):
+        st.session_state.show_dashboard = True
+        st.rerun()
+
+if not st.session_state.show_dashboard:
+    _show_landing()
+    st.stop()
+
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap');
   :root {
-    --bg:        #080b12;
-    --surface:   #0d1117;
-    --surface2:  #131a24;
-    --border:    rgba(0,255,200,0.12);
-    --accent:    #00ffc8;
-    --accent2:   #7b61ff;
-    --red:       #ff4566;
-    --gold:      #ffd166;
-    --text:      #e0e8f0;
-    --muted:     #5a6a7a;
-    --font-head: 'Syne', sans-serif;
+    --bg:        #05080f;
+    --bg2:       #080d16;
+    --surface:   rgba(13,19,30,0.85);
+    --surface2:  rgba(18,26,40,0.75);
+    --surface3:  rgba(22,32,48,0.6);
+    --border:    rgba(0,255,170,0.10);
+    --border2:   rgba(0,255,170,0.20);
+    --accent:    #00ffaa;
+    --accent2:   #00e699;
+    --accent-dim: rgba(0,255,170,0.12);
+    --red:       #ff4060;
+    --gold:      #ffc844;
+    --text:      #eaf0f6;
+    --text2:     #c0ccd8;
+    --muted:     #4a5a6e;
+    --muted2:    #364050;
+    --glow:      0 0 30px rgba(0,255,170,0.15), 0 0 60px rgba(0,255,170,0.05);
+    --glow-strong: 0 0 40px rgba(0,255,170,0.25), 0 0 80px rgba(0,255,170,0.08);
+    --card-bg:   linear-gradient(145deg, rgba(15,22,35,0.9) 0%, rgba(10,16,28,0.95) 100%);
+    --font-head: 'Inter', sans-serif;
     --font-mono: 'Space Mono', monospace;
   }
+
+  /* ── Base ── */
   html, body, [class*="css"] {
     background-color: var(--bg) !important;
     color: var(--text) !important;
-    font-family: var(--font-head);
+    font-family: var(--font-head) !important;
   }
+  #MainMenu, footer, header { visibility: hidden; }
+  .block-container { padding-top: 1rem !important; max-width: 1400px; }
+
+  /* ── Subtle background pattern ── */
+  .main .block-container::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 800px 600px at 20% 10%, rgba(0,255,170,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 400px at 80% 80%, rgba(0,100,255,0.02) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ── Sidebar ── */
   section[data-testid="stSidebar"] {
-    background: var(--surface) !important;
+    background: linear-gradient(180deg, #070c14 0%, #0a1020 100%) !important;
     border-right: 1px solid var(--border);
+    backdrop-filter: blur(20px);
   }
   section[data-testid="stSidebar"] * { color: var(--text) !important; }
+  section[data-testid="stSidebar"] .stMarkdown p { font-size: 0.88rem; }
+
+  /* ── Glassmorphism Metric Cards ── */
   div[data-testid="metric-container"] {
-    background: var(--surface2);
+    background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 18px;
-    backdrop-filter: blur(8px);
+    border-radius: 18px;
+    padding: 18px 22px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--glow), 0 8px 32px rgba(0,0,0,0.3);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  div[data-testid="metric-container"]::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+  div[data-testid="metric-container"]:hover {
+    border-color: var(--border2);
+    box-shadow: var(--glow-strong), 0 12px 40px rgba(0,0,0,0.4);
+    transform: translateY(-2px);
   }
   div[data-testid="metric-container"] label {
     color: var(--muted) !important;
     font-family: var(--font-mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.1em;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
   div[data-testid="metric-container"] [data-testid="stMetricValue"] {
     font-family: var(--font-mono);
     font-size: 1.3rem;
     color: var(--accent) !important;
+    text-shadow: 0 0 20px rgba(0,255,170,0.3);
   }
-  div[data-baseweb="select"] > div,
-  input[type="text"], input[type="number"] {
-    background: var(--surface2) !important;
-    border-color: var(--border) !important;
-    color: var(--text) !important;
-    border-radius: 8px !important;
-    font-family: var(--font-mono) !important;
-  }
-  .stButton > button {
-    background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
-    color: #000 !important;
-    font-family: var(--font-mono);
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 0.5rem 1.4rem !important;
-    transition: opacity 0.2s;
-  }
-  .stButton > button:hover { opacity: 0.85; }
-  hr { border-color: var(--border) !important; }
-  .insight-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 18px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    backdrop-filter: blur(12px);
-  }
-  .insight-card.bull  { border-left: 3px solid var(--accent); }
-  .insight-card.bear  { border-left: 3px solid var(--red); }
-  .insight-card.neut  { border-left: 3px solid var(--gold); }
-  .insight-icon { font-size: 1.3rem; line-height: 1; margin-top: 2px; }
-  .insight-title {
+  div[data-testid="metric-container"] [data-testid="stMetricDelta"] {
     font-family: var(--font-mono);
     font-size: 0.72rem;
+  }
+
+  /* ── Inputs ── */
+  div[data-baseweb="select"] > div,
+  input[type="text"], input[type="number"],
+  .stTextInput input, .stNumberInput input {
+    background: rgba(15,22,35,0.8) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    border-radius: 12px !important;
+    font-family: var(--font-mono) !important;
+    backdrop-filter: blur(8px) !important;
+    transition: border-color 0.3s, box-shadow 0.3s !important;
+  }
+  div[data-baseweb="select"] > div:hover,
+  input[type="text"]:focus, input[type="number"]:focus {
+    border-color: var(--border2) !important;
+    box-shadow: 0 0 20px rgba(0,255,170,0.08) !important;
+  }
+
+  /* ── Buttons ── */
+  .stButton > button {
+    background: linear-gradient(135deg, var(--accent) 0%, #00cc88 100%) !important;
+    color: #020c06 !important;
+    font-family: var(--font-head) !important;
+    font-weight: 700 !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.04em;
+    border: none !important;
+    border-radius: 14px !important;
+    padding: 0.6rem 1.6rem !important;
+    box-shadow: 0 0 24px rgba(0,255,170,0.2), 0 4px 12px rgba(0,0,0,0.3) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  .stButton > button:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 0 40px rgba(0,255,170,0.35), 0 8px 24px rgba(0,0,0,0.4) !important;
+    opacity: 0.95 !important;
+  }
+  .stButton > button:active {
+    transform: translateY(0px) !important;
+  }
+
+  /* ── Horizontal Rules ── */
+  hr {
+    border: none !important;
+    height: 1px !important;
+    background: linear-gradient(90deg, transparent, var(--border2), transparent) !important;
+    margin: 16px 0 !important;
+  }
+
+  /* ── Insight Cards (glassmorphism) ── */
+  .insight-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 22px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .insight-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border-color: var(--border2);
+  }
+  .insight-card.bull  {
+    border-left: 3px solid var(--accent);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2), -4px 0 20px rgba(0,255,170,0.06);
+  }
+  .insight-card.bear  {
+    border-left: 3px solid var(--red);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2), -4px 0 20px rgba(255,64,96,0.06);
+  }
+  .insight-card.neut  {
+    border-left: 3px solid var(--gold);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2), -4px 0 20px rgba(255,200,68,0.06);
+  }
+  .insight-icon { font-size: 1.4rem; line-height: 1; margin-top: 2px; }
+  .insight-title {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
   .insight-body {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text);
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text2);
+    line-height: 1.5;
   }
+
+  /* ── Section Headers ── */
   .section-header {
     font-family: var(--font-mono);
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--muted);
-    margin: 16px 0 8px;
+    margin: 18px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
+  .section-header::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(0,255,170,0.4);
+  }
+
+  /* ── Logo ── */
   .logo-text {
     font-family: var(--font-head);
     font-weight: 800;
     font-size: 1.5rem;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    background: linear-gradient(135deg, var(--accent), #00cc88);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: 0.04em;
+    letter-spacing: -0.01em;
+    text-shadow: 0 0 40px rgba(0,255,170,0.3);
   }
   .logo-sub {
     font-family: var(--font-mono);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     color: var(--muted);
     letter-spacing: 0.2em;
     text-transform: uppercase;
+    margin-top: 2px;
   }
+
+  /* ── Signal Badges ── */
   .signal-badge {
     display: inline-block;
-    padding: 3px 10px;
-    border-radius: 20px;
+    padding: 4px 14px;
+    border-radius: 24px;
     font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    transition: all 0.3s;
   }
-  .badge-buy  { background: rgba(0,255,200,0.15); color: #00ffc8; border: 1px solid rgba(0,255,200,0.4); }
-  .badge-sell { background: rgba(255,69,102,0.15); color: #ff4566; border: 1px solid rgba(255,69,102,0.4); }
-  .badge-hold { background: rgba(255,209,102,0.15); color: #ffd166; border: 1px solid rgba(255,209,102,0.4); }
-  .stPlotlyChart { border-radius: 16px; overflow: hidden; }
-  ::-webkit-scrollbar { width: 5px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  #MainMenu, footer, header { visibility: hidden; }
-  .block-container { padding-top: 1.2rem !important; }
+  .badge-buy  {
+    background: rgba(0,255,170,0.12);
+    color: #00ffaa;
+    border: 1px solid rgba(0,255,170,0.35);
+    box-shadow: 0 0 16px rgba(0,255,170,0.15);
+  }
+  .badge-sell {
+    background: rgba(255,64,96,0.12);
+    color: #ff4060;
+    border: 1px solid rgba(255,64,96,0.35);
+    box-shadow: 0 0 16px rgba(255,64,96,0.15);
+  }
+  .badge-hold {
+    background: rgba(255,200,68,0.12);
+    color: #ffc844;
+    border: 1px solid rgba(255,200,68,0.35);
+    box-shadow: 0 0 16px rgba(255,200,68,0.15);
+  }
+
+  /* ── Charts ── */
+  .stPlotlyChart {
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--glow), 0 8px 32px rgba(0,0,0,0.2);
+    transition: box-shadow 0.3s;
+  }
+  .stPlotlyChart:hover {
+    box-shadow: var(--glow-strong), 0 12px 40px rgba(0,0,0,0.3);
+  }
+
+  /* ── Tabs ── */
   .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    background: var(--surface);
-    border-radius: 12px;
-    padding: 4px;
+    gap: 6px;
+    background: rgba(10,16,28,0.7);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 5px;
+    backdrop-filter: blur(12px);
   }
   .stTabs [data-baseweb="tab"] {
     background: transparent;
     color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    border-radius: 8px;
-    padding: 6px 16px;
+    font-family: var(--font-head);
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    border-radius: 12px;
+    padding: 8px 18px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .stTabs [data-baseweb="tab"]:hover {
+    background: rgba(0,255,170,0.05);
+    color: var(--text2);
   }
   .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, rgba(0,255,200,0.15), rgba(123,97,255,0.15));
+    background: rgba(0,255,170,0.1) !important;
     color: var(--accent) !important;
     border-bottom: 2px solid var(--accent);
+    box-shadow: 0 0 20px rgba(0,255,170,0.1);
+    font-weight: 600;
+  }
+
+  /* ── Dataframes ── */
+  .stDataFrame {
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--border) !important;
+  }
+
+  /* ── Expanders ── */
+  details {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 16px !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  /* ── Toggle ── */
+  .stCheckbox label span {
+    font-family: var(--font-head) !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,255,170,0.15); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,255,170,0.3); }
+
+  /* ── Sidebar Module Status ── */
+  .module-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    margin-bottom: 4px;
+    transition: background 0.3s;
+    font-family: var(--font-head);
+    font-size: 0.78rem;
+  }
+  .module-status:hover {
+    background: rgba(255,255,255,0.03);
+  }
+  .module-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .module-dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(0,255,170,0.5);
+  }
+  .module-dot.inactive {
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(255,64,96,0.3);
+  }
+
+  /* ── Sidebar Nav Item ── */
+  .sidebar-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-family: var(--font-head);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text2);
+    transition: all 0.3s;
+    margin-bottom: 2px;
+  }
+  .sidebar-nav:hover {
+    background: rgba(0,255,170,0.06);
+    color: var(--text);
+  }
+  .sidebar-nav.active {
+    background: rgba(0,255,170,0.1);
+    color: var(--accent);
+    box-shadow: 0 0 16px rgba(0,255,170,0.08);
+  }
+  .sidebar-nav .nav-icon {
+    font-size: 1rem;
+    width: 24px;
+    text-align: center;
+  }
+
+  /* ── Glass Panel ── */
+  .glass-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: var(--glow), 0 8px 32px rgba(0,0,0,0.25);
+    position: relative;
+    overflow: hidden;
+  }
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,170,0.3), transparent);
+  }
+
+  /* ── Animated gradient behind chart ── */
+  @keyframes subtleGlow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ── Slider ── */
+  .stSlider [data-baseweb="slider"] [role="slider"] {
+    background: var(--accent) !important;
+    box-shadow: 0 0 10px rgba(0,255,170,0.4) !important;
+  }
+
+  /* ── Download Button ── */
+  .stDownloadButton > button {
+    background: rgba(0,255,170,0.08) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 12px !important;
+    font-family: var(--font-head) !important;
+    font-weight: 600 !important;
+    transition: all 0.3s !important;
+  }
+  .stDownloadButton > button:hover {
+    background: rgba(0,255,170,0.15) !important;
+    box-shadow: 0 0 20px rgba(0,255,170,0.15) !important;
   }
 </style>
 """, unsafe_allow_html=True)
@@ -330,31 +645,31 @@ st.markdown("""
 
 CHART_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="#0a0e16",
-    font=dict(family="Space Mono, monospace", color="#8899aa", size=11),
+    plot_bgcolor="rgba(5,8,15,0.6)",
+    font=dict(family="Inter, sans-serif", color="#6a7a8e", size=11),
     margin=dict(l=0, r=0, t=10, b=0),
     legend=dict(
-        bgcolor="rgba(0,0,0,0)",
-        bordercolor="rgba(0,255,200,0.15)",
+        bgcolor="rgba(10,16,28,0.8)",
+        bordercolor="rgba(0,255,170,0.12)",
         borderwidth=1,
-        font=dict(size=10),
+        font=dict(size=10, color="#c0ccd8"),
     ),
     xaxis=dict(
-        gridcolor="rgba(255,255,255,0.04)",
-        zerolinecolor="rgba(255,255,255,0.06)",
+        gridcolor="rgba(255,255,255,0.03)",
+        zerolinecolor="rgba(255,255,255,0.05)",
         rangeslider=dict(visible=False),
-        showspikes=True, spikecolor="#00ffc8", spikethickness=1,
+        showspikes=True, spikecolor="#00ffaa", spikethickness=1,
     ),
     yaxis=dict(
-        gridcolor="rgba(255,255,255,0.04)",
-        zerolinecolor="rgba(255,255,255,0.06)",
-        showspikes=True, spikecolor="#00ffc8", spikethickness=1,
+        gridcolor="rgba(255,255,255,0.03)",
+        zerolinecolor="rgba(255,255,255,0.05)",
+        showspikes=True, spikecolor="#00ffaa", spikethickness=1,
     ),
     hovermode="x unified",
     hoverlabel=dict(
-        bgcolor="#0d1117",
-        bordercolor="rgba(0,255,200,0.3)",
-        font=dict(family="Space Mono", color="#e0e8f0", size=11),
+        bgcolor="rgba(10,16,28,0.95)",
+        bordercolor="rgba(0,255,170,0.25)",
+        font=dict(family="Space Mono", color="#eaf0f6", size=11),
     ),
 )
 
@@ -413,9 +728,9 @@ def detect_signals(df, sma_p, ema_p):
     else:           score -= 1
     if close > ema: score += 1
     else:           score -= 1
-    if score >= 3:    return "BUY",  "#00ffc8"
-    elif score <= -3: return "SELL", "#ff4566"
-    else:             return "HOLD", "#ffd166"
+    if score >= 3:    return "BUY",  "#00ffaa"
+    elif score <= -3: return "SELL", "#ff4060"
+    else:             return "HOLD", "#ffc844"
 
 
 def generate_insights(df):
@@ -518,11 +833,11 @@ def build_chart(df, cfg):
     fig.add_trace(go.Candlestick(
         x=idx, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"],
         name="OHLC",
-        increasing=dict(line=dict(color="#00ffc8", width=1), fillcolor="rgba(0,255,200,0.75)"),
-        decreasing=dict(line=dict(color="#ff4566", width=1), fillcolor="rgba(255,69,102,0.75)"),
+        increasing=dict(line=dict(color="#00ffaa", width=1), fillcolor="rgba(0,255,170,0.75)"),
+        decreasing=dict(line=dict(color="#ff4060", width=1), fillcolor="rgba(255,64,96,0.75)"),
         whiskerwidth=0.3,
     ), row=1, col=1)
-    colors = ["rgba(0,255,200,0.25)" if c >= o else "rgba(255,69,102,0.25)"
+    colors = ["rgba(0,255,170,0.2)" if c >= o else "rgba(255,64,96,0.2)"
               for c, o in zip(df["Close"], df["Open"])]
     fig.add_trace(go.Bar(x=idx, y=df["Volume"], name="Volume", marker_color=colors,
                          yaxis="y2", showlegend=False), row=1, col=1)
@@ -531,7 +846,7 @@ def build_chart(df, cfg):
     sma_col = f"SMA_{sma_p}"
     if cfg["show_sma"] and sma_col in df:
         fig.add_trace(go.Scatter(x=idx, y=df[sma_col], name=f"SMA {sma_p}",
-                                  line=dict(color="#ffd166", width=1.5, dash="dot")), row=1, col=1)
+                                  line=dict(color="#ffc844", width=1.5, dash="dot")), row=1, col=1)
     ema_col = f"EMA_{ema_p}"
     if cfg["show_ema"] and ema_col in df:
         fig.add_trace(go.Scatter(x=idx, y=df[ema_col], name=f"EMA {ema_p}",
@@ -552,29 +867,29 @@ def build_chart(df, cfg):
         if buy_mask.any():
             fig.add_trace(go.Scatter(x=idx[buy_mask], y=df["Low"][buy_mask] * 0.997,
                                       mode="markers", name="BUY Signal",
-                                      marker=dict(symbol="triangle-up", size=9, color="#00ffc8",
+                                      marker=dict(symbol="triangle-up", size=10, color="#00ffaa",
                                                   line=dict(color="#000", width=1))), row=1, col=1)
         if sell_mask.any():
             fig.add_trace(go.Scatter(x=idx[sell_mask], y=df["High"][sell_mask] * 1.003,
                                       mode="markers", name="SELL Signal",
-                                      marker=dict(symbol="triangle-down", size=9, color="#ff4566",
+                                      marker=dict(symbol="triangle-down", size=10, color="#ff4060",
                                                   line=dict(color="#000", width=1))), row=1, col=1)
     sub_row = 2
     if show_rsi and "RSI" in df:
         fig.add_trace(go.Scatter(x=idx, y=df["RSI"], name="RSI",
-                                  line=dict(color="#00ffc8", width=1.5),
-                                  fill="tozeroy", fillcolor="rgba(0,255,200,0.04)"), row=sub_row, col=1)
-        for level, col in [(70, "rgba(255,69,102,0.3)"), (30, "rgba(0,255,200,0.3)")]:
+                                  line=dict(color="#00ffaa", width=1.5),
+                                  fill="tozeroy", fillcolor="rgba(0,255,170,0.04)"), row=sub_row, col=1)
+        for level, col in [(70, "rgba(255,64,96,0.3)"), (30, "rgba(0,255,170,0.3)")]:
             fig.add_hline(y=level, line=dict(color=col, width=1, dash="dot"), row=sub_row, col=1)
         fig.update_yaxes(range=[0, 100], row=sub_row, col=1)
         sub_row += 1
     if show_macd and "MACD" in df:
-        hist_colors = ["rgba(0,255,200,0.7)" if v >= 0 else "rgba(255,69,102,0.7)"
+        hist_colors = ["rgba(0,255,170,0.7)" if v >= 0 else "rgba(255,64,96,0.7)"
                        for v in df["MACD_Hist"].fillna(0)]
         fig.add_trace(go.Bar(x=idx, y=df["MACD_Hist"], name="MACD Hist",
                               marker_color=hist_colors, showlegend=False), row=sub_row, col=1)
         fig.add_trace(go.Scatter(x=idx, y=df["MACD"], name="MACD",
-                                  line=dict(color="#00ffc8", width=1.5)), row=sub_row, col=1)
+                                  line=dict(color="#00ffaa", width=1.5)), row=sub_row, col=1)
         fig.add_trace(go.Scatter(x=idx, y=df["MACD_Signal"], name="Signal",
                                   line=dict(color="#ff6b9d", width=1.2, dash="dot")), row=sub_row, col=1)
         sub_row += 1
@@ -583,15 +898,15 @@ def build_chart(df, cfg):
                                   line=dict(color="#7b61ff", width=1.5),
                                   fill="tozeroy", fillcolor="rgba(123,97,255,0.06)"), row=sub_row, col=1)
     fig.update_layout(**CHART_LAYOUT, height=680 + n_rows * 30, dragmode="zoom",
-                       newshape=dict(line_color="#00ffc8"))
+                       newshape=dict(line_color="#00ffaa"))
     for i in range(1, n_rows + 1):
-        fig.update_xaxes(row=i, col=1, gridcolor="rgba(255,255,255,0.04)", showgrid=True,
-                         rangeslider_visible=False, showspikes=True, spikecolor="#00ffc8", spikethickness=1)
-        fig.update_yaxes(row=i, col=1, gridcolor="rgba(255,255,255,0.04)", showgrid=True,
-                         showspikes=True, spikecolor="#00ffc8", spikethickness=1)
+        fig.update_xaxes(row=i, col=1, gridcolor="rgba(255,255,255,0.03)", showgrid=True,
+                         rangeslider_visible=False, showspikes=True, spikecolor="#00ffaa", spikethickness=1)
+        fig.update_yaxes(row=i, col=1, gridcolor="rgba(255,255,255,0.03)", showgrid=True,
+                         showspikes=True, spikecolor="#00ffaa", spikethickness=1)
     for ann in fig.layout.annotations:
-        ann.font.color = "#5a6a7a"
-        ann.font.family = "Space Mono, monospace"
+        ann.font.color = "#4a5a6e"
+        ann.font.family = "Inter, sans-serif"
         ann.font.size = 10
     return fig
 
@@ -601,11 +916,14 @@ def build_chart(df, cfg):
 # ══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown('<div class="logo-text">⚡ NeuroTrade</div>', unsafe_allow_html=True)
-    st.markdown('<div class="logo-sub">AI-Powered Trading Terminal</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="padding:8px 0 4px;">'
+        '<div class="logo-text">⚡ NeuroTrade</div>'
+        '<div class="logo-sub">AI-Powered Trading Terminal</div>'
+        '</div>', unsafe_allow_html=True)
     st.markdown("---")
 
-    st.markdown('<div class="section-header">Data Source</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📡 Market Data</div>', unsafe_allow_html=True)
     data_source = st.radio("", ["Live Market (yfinance)", "Upload CSV"], label_visibility="collapsed")
 
     if data_source == "Upload CSV":
@@ -621,42 +939,53 @@ with st.sidebar:
         timeframe = st.selectbox("Timeframe", list(TIMEFRAMES.keys()), index=3)
 
     st.markdown("---")
-    st.markdown('<div class="section-header">Indicators</div>', unsafe_allow_html=True)
-    show_sma = st.toggle("SMA", value=True)
+    st.markdown('<div class="section-header">📊 Chart Overlays</div>', unsafe_allow_html=True)
+    show_sma = st.toggle("SMA (Simple Moving Avg)", value=True)
     sma_p = st.slider("SMA Period", 5, 200, 20, step=5, disabled=not show_sma,
                        label_visibility="collapsed") if show_sma else 20
-    show_ema = st.toggle("EMA", value=True)
+    show_ema = st.toggle("EMA (Exponential Moving Avg)", value=True)
     ema_p = st.slider("EMA Period", 5, 200, 20, step=5, disabled=not show_ema,
                        label_visibility="collapsed") if show_ema else 20
     show_bb = st.toggle("Bollinger Bands", value=True)
     bb_p = st.slider("BB Period", 5, 50, 20, step=5, disabled=not show_bb,
                       label_visibility="collapsed") if show_bb else 20
-    show_vwap = st.toggle("VWAP", value=True)
-    show_rsi = st.toggle("RSI", value=True)
-    show_macd = st.toggle("MACD", value=True)
-    show_obv = st.toggle("OBV", value=False)
-    show_adx = st.toggle("ADX Panel", value=False)
-    show_signals = st.toggle("Buy/Sell Signals", value=True)
+    show_vwap = st.toggle("Volume-Weighted Price", value=True)
+
+    st.markdown('<div class="section-header">📈 Analysis Panels</div>', unsafe_allow_html=True)
+    show_rsi = st.toggle("Momentum (RSI)", value=True)
+    show_macd = st.toggle("Trend Signal (MACD)", value=True)
+    show_obv = st.toggle("Volume Flow (OBV)", value=False)
+    show_adx = st.toggle("Trend Strength (ADX)", value=False)
+    show_signals = st.toggle("Buy / Sell Markers", value=True)
 
     st.markdown("---")
-    st.markdown('<div class="section-header">RSI Period</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">⚙️ RSI Sensitivity</div>', unsafe_allow_html=True)
     rsi_p = st.slider("", 5, 30, 14, label_visibility="collapsed")
 
     st.markdown("---")
-    fetch_btn = st.button("⚡  Load Data", use_container_width=True)
+    fetch_btn = st.button("⚡  Analyze Market", use_container_width=True)
 
     st.markdown("---")
-    st.markdown('<div class="section-header">Modules Available</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🧩 Available Tools</div>', unsafe_allow_html=True)
     modules = {
-        "ML Models": _ML, "DL Models": _DL, "Quantum": _QM,
-        "Backtester": _BT, "Regime Detector": _RD,
-        "Portfolio Sim": _PS, "Stress Test": _ST,
-        "News/LLM": _LLM, "Reports": _RPT,
+        "🤖 AI Predictions": _ML,
+        "🧠 Neural Forecast": _DL,
+        "⚛️ Quantum AI": _QM,
+        "📈 Strategy Tester": _BT,
+        "🔄 Market Mood": _RD,
+        "💼 Portfolio Sim": _PS,
+        "🔥 Risk Simulator": _ST,
+        "📰 Market News": _LLM,
+        "📋 Reports": _RPT,
     }
     for name, available in modules.items():
-        status = "🟢" if available else "🔴"
-        st.markdown(f"<span style='font-family:Space Mono;font-size:0.7rem;color:{'#00ffc8' if available else '#ff4566'};'>"
-                    f"{status} {name}</span>", unsafe_allow_html=True)
+        dot_class = "active" if available else "inactive"
+        color = "#00ffaa" if available else "#ff4060"
+        st.markdown(
+            f'<div class="module-status">'
+            f'<div class="module-dot {dot_class}"></div>'
+            f'<span style="color:{color};">{name}</span>'
+            f'</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -712,13 +1041,18 @@ raw = st.session_state.df_raw
 if df is None or df.empty:
     st.markdown("""
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-    height:70vh;gap:16px;opacity:0.5;">
-      <div style="font-size:4rem;">⚡</div>
-      <div style="font-family:'Space Mono',monospace;font-size:1.3rem;font-weight:700;
-      background:linear-gradient(90deg,#00ffc8,#7b61ff);-webkit-background-clip:text;
+    height:70vh;gap:20px;">
+      <div style="font-size:4.5rem;filter:drop-shadow(0 0 30px rgba(0,255,170,0.4));">⚡</div>
+      <div style="font-family:'Inter',sans-serif;font-size:1.6rem;font-weight:800;
+      background:linear-gradient(135deg,#00ffaa,#00cc88);-webkit-background-clip:text;
       -webkit-text-fill-color:transparent;">NeuroTrade</div>
-      <div style="font-family:'Space Mono',monospace;font-size:0.8rem;color:#5a6a7a;
-      letter-spacing:0.15em;text-transform:uppercase;">Select a ticker and click Load Data</div>
+      <div style="font-family:'Inter',sans-serif;font-size:0.9rem;color:#4a5a6e;
+      font-weight:400;max-width:400px;text-align:center;line-height:1.6;">
+      Select a ticker from the sidebar and click <b style='color:#00ffaa;'>Analyze Market</b> to get started</div>
+      <div style="margin-top:12px;padding:12px 24px;border-radius:14px;
+      background:rgba(0,255,170,0.06);border:1px solid rgba(0,255,170,0.15);
+      font-family:'Space Mono',monospace;font-size:0.72rem;color:#4a5a6e;">
+      Stocks · Crypto · ETFs · NSE/BSE — Real-time data</div>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
@@ -732,27 +1066,21 @@ change_pct = (change / prev_close) * 100 if prev_close != 0 else 0
 signal, sig_color = detect_signals(df, sma_p, ema_p)
 badge_class = {"BUY": "badge-buy", "SELL": "badge-sell", "HOLD": "badge-hold"}[signal]
 
-h_col1, h_col2 = st.columns([3, 1])
-with h_col1:
-    direction = "▲" if change >= 0 else "▼"
-    color = "#00ffc8" if change >= 0 else "#ff4566"
-    st.markdown(
-        f'<div style="display:flex;align-items:baseline;gap:16px;">'
-        f'<span style="font-size:1.8rem;font-weight:800;font-family:Syne;">{st.session_state.ticker}</span>'
-        f'<span style="font-family:Space Mono;font-size:1.4rem;color:{color};">{last_close:,.2f}</span>'
-        f'<span style="font-family:Space Mono;font-size:0.9rem;color:{color};">'
-        f'{direction} {abs(change):.2f} ({abs(change_pct):.2f}%)</span>'
-        f'&nbsp;&nbsp;<span class="signal-badge {badge_class}">{signal}</span>'
-        f'</div>', unsafe_allow_html=True,
-    )
-with h_col2:
-    st.markdown(
-        f'<div style="text-align:right;font-family:Space Mono;font-size:0.7rem;color:#5a6a7a;">'
-        f'{len(df)} candles &nbsp;·&nbsp; {str(df.index[-1])[:10]}</div>',
-        unsafe_allow_html=True,
-    )
-
-st.markdown("<div style='margin:4px 0 10px;'></div>", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="glass-panel" style="margin-bottom:20px;">'
+    f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">'
+    f'<div style="display:flex;align-items:baseline;gap:16px;">'
+    f'<span style="font-size:1.8rem;font-weight:800;font-family:Inter;letter-spacing:-0.02em;">{st.session_state.ticker}</span>'
+    f'<span style="font-family:Space Mono,monospace;font-size:1.5rem;color:{"#00ffaa" if change >= 0 else "#ff4060"};'
+    f'text-shadow:0 0 20px {"rgba(0,255,170,0.3)" if change >= 0 else "rgba(255,64,96,0.3)"};">{last_close:,.2f}</span>'
+    f'<span style="font-family:Space Mono;font-size:0.85rem;color:{"#00ffaa" if change >= 0 else "#ff4060"};">'
+    f'{"▲" if change >= 0 else "▼"} {abs(change):.2f} ({abs(change_pct):.2f}%)</span>'
+    f'&nbsp;&nbsp;<span class="signal-badge {badge_class}">{signal}</span>'
+    f'</div>'
+    f'<div style="font-family:Space Mono;font-size:0.7rem;color:#4a5a6e;">'
+    f'{len(df)} candles &nbsp;·&nbsp; {str(df.index[-1])[:10]}</div>'
+    f'</div></div>', unsafe_allow_html=True,
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -760,14 +1088,14 @@ st.markdown("<div style='margin:4px 0 10px;'></div>", unsafe_allow_html=True)
 # ══════════════════════════════════════════════════════════════════════════════
 
 tab_names = ["📊 Dashboard"]
-if _ML:  tab_names.append("🤖 ML Models")
-if _DL:  tab_names.append("🧠 Deep Learning")
-if _QM:  tab_names.append("⚛️ Quantum")
-if _BT:  tab_names.append("📈 Backtester")
-if _RD:  tab_names.append("🔄 Regime")
-if _ST:  tab_names.append("🔥 Stress Test")
-if _LLM: tab_names.append("📰 News")
-tab_names.append("📋 Data")
+if _ML:  tab_names.append("🤖 AI Predictions")
+if _DL:  tab_names.append("🧠 Neural Forecast")
+if _QM:  tab_names.append("⚛️ Quantum AI")
+if _BT:  tab_names.append("📈 Strategy Tester")
+if _RD:  tab_names.append("🔄 Market Mood")
+if _ST:  tab_names.append("🔥 Risk Simulator")
+if _LLM: tab_names.append("📰 Market News")
+tab_names.append("📋 Data Explorer")
 
 tabs = st.tabs(tab_names)
 tab_idx = 0
@@ -809,25 +1137,26 @@ with tabs[tab_idx]:
     if show_adx and "ADX" in df:
         adx_fig = go.Figure()
         adx_fig.add_trace(go.Scatter(x=df.index, y=df["ADX"], name="ADX",
-                                      line=dict(color="#ffd166", width=2)))
+                                      line=dict(color="#ffc844", width=2)))
         if "DI_Pos" in df:
             adx_fig.add_trace(go.Scatter(x=df.index, y=df["DI_Pos"], name="+DI",
-                                          line=dict(color="#00ffc8", width=1.2, dash="dot")))
+                                          line=dict(color="#00ffaa", width=1.2, dash="dot")))
         if "DI_Neg" in df:
             adx_fig.add_trace(go.Scatter(x=df.index, y=df["DI_Neg"], name="−DI",
-                                          line=dict(color="#ff4566", width=1.2, dash="dot")))
+                                          line=dict(color="#ff4060", width=1.2, dash="dot")))
         adx_fig.add_hline(y=25, line=dict(color="rgba(255,209,102,0.4)", dash="dot", width=1))
         adx_fig.update_layout(**CHART_LAYOUT, height=200,
                                title=dict(text="ADX — Trend Strength",
-                                          font=dict(family="Space Mono", color="#5a6a7a", size=11)))
+                                          font=dict(family="Inter", color="#4a5a6e", size=11)))
         st.plotly_chart(adx_fig, use_container_width=True, config={"displaylogo": False})
 
     st.markdown("---")
 
-    st.markdown('<div style="font-family:Syne;font-weight:800;font-size:1.1rem;'
-                'background:linear-gradient(90deg,#00ffc8,#7b61ff);'
+    st.markdown('<div style="font-family:Inter;font-weight:700;font-size:1.1rem;'
+                'background:linear-gradient(135deg,#00ffaa,#00cc88);'
                 '-webkit-background-clip:text;-webkit-text-fill-color:transparent;'
-                'margin-bottom:12px;">🧠 AI Insights</div>', unsafe_allow_html=True)
+                'margin-bottom:14px;display:flex;align-items:center;gap:10px;">'
+                '🧠 Smart Insights</div>', unsafe_allow_html=True)
 
     insights = generate_insights(df)
     if insights:
@@ -853,8 +1182,8 @@ with tabs[tab_idx]:
 if _ML:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 🤖 Classical ML Models")
-        st.markdown("Train XGBoost, Random Forest, and SVM on your data for direction prediction.")
+        st.markdown("### 🤖 AI Predictions")
+        st.markdown("Use machine learning models to predict where the price might go next.")
 
         ml_col1, ml_col2, ml_col3 = st.columns(3)
         with ml_col1:
@@ -864,7 +1193,7 @@ if _ML:
         with ml_col3:
             ml_lookback = st.slider("Lookback Window", 20, 120, 60, key="ml_lookback")
 
-        if st.button("🚀 Train ML Models", key="train_ml"):
+        if st.button("⚡ Run AI Analysis", key="train_ml"):
             with st.spinner("Training ML models..."):
                 try:
                     cfg = MLConfig(
@@ -891,7 +1220,7 @@ if _ML:
                                     x=list(top_fi.values()),
                                     y=list(top_fi.keys()),
                                     orientation='h',
-                                    marker_color="#00ffc8",
+                                    marker_color="#00ffaa",
                                 ))
                                 fi_fig.update_layout(**CHART_LAYOUT, height=350,
                                                      title="Feature Importance (Top 15)")
@@ -899,9 +1228,9 @@ if _ML:
 
                     pred = trainer.predict_latest(df)
                     sig_text = "BUY" if pred > 0.55 else ("SELL" if pred < 0.45 else "HOLD")
-                    sig_col = "#00ffc8" if sig_text == "BUY" else ("#ff4566" if sig_text == "SELL" else "#ffd166")
+                    sig_col = "#00ffaa" if sig_text == "BUY" else ("#ff4060" if sig_text == "SELL" else "#ffc844")
                     st.markdown(f"<div style='text-align:center;padding:20px;'>"
-                                f"<span style='font-family:Space Mono;font-size:1.5rem;color:{sig_col};'>"
+                                f"<span style='font-family:Space Mono,monospace;font-size:1.5rem;color:{sig_col};'>"
                                 f"Ensemble Prediction: {pred:.3f} → {sig_text}</span></div>",
                                 unsafe_allow_html=True)
                 except Exception as e:
@@ -916,8 +1245,8 @@ if _ML:
 if _DL:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 🧠 Deep Learning Models")
-        st.markdown("Train LSTM, TCN, or TFT neural networks for price forecasting.")
+        st.markdown("### 🧠 Neural Forecast")
+        st.markdown("Advanced neural networks that learn price patterns to forecast future movement.")
 
         dl_col1, dl_col2, dl_col3, dl_col4 = st.columns(4)
         with dl_col1:
@@ -929,7 +1258,7 @@ if _DL:
         with dl_col4:
             dl_horizon = st.slider("Forecast Horizon", 1, 20, 5, key="dl_horizon")
 
-        if st.button("🚀 Train DL Model", key="train_dl"):
+        if st.button("⚡ Generate Forecast", key="train_dl"):
             with st.spinner(f"Training {dl_model}... (this may take a minute)"):
                 try:
                     dl_cfg = DLConfig(
@@ -956,9 +1285,9 @@ if _DL:
                             hist = result["history"]
                             loss_fig = go.Figure()
                             loss_fig.add_trace(go.Scatter(y=hist.get("train_loss", []), name="Train Loss",
-                                                          line=dict(color="#00ffc8")))
+                                                          line=dict(color="#00ffaa")))
                             loss_fig.add_trace(go.Scatter(y=hist.get("val_loss", []), name="Val Loss",
-                                                          line=dict(color="#ff4566")))
+                                                          line=dict(color="#ff4060")))
                             loss_fig.update_layout(**CHART_LAYOUT, height=300, title="Training Loss Curve")
                             st.plotly_chart(loss_fig, use_container_width=True)
 
@@ -967,9 +1296,9 @@ if _DL:
                         st.markdown("#### Price Forecast")
                         fc_fig = go.Figure()
                         fc_fig.add_trace(go.Scatter(x=df.index[-30:], y=df["Close"].iloc[-30:],
-                                                     name="Actual", line=dict(color="#00ffc8")))
+                                                     name="Actual", line=dict(color="#00ffaa")))
                         fc_fig.add_trace(go.Scatter(x=forecast["dates"], y=forecast["forecast"],
-                                                     name="Forecast", line=dict(color="#ffd166", dash="dash")))
+                                                     name="Forecast", line=dict(color="#ffc844", dash="dash")))
                         fc_fig.update_layout(**CHART_LAYOUT, height=350, title=f"{dl_model} Forecast")
                         st.plotly_chart(fc_fig, use_container_width=True)
 
@@ -985,8 +1314,8 @@ if _DL:
 if _QM:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### ⚛️ Quantum Models")
-        st.markdown("Train VQC/QCNN quantum circuits for market direction prediction.")
+        st.markdown("### ⚛️ Quantum AI")
+        st.markdown("Next-generation quantum computing models for market direction analysis.")
 
         qm_col1, qm_col2, qm_col3 = st.columns(3)
         with qm_col1:
@@ -996,7 +1325,7 @@ if _QM:
         with qm_col3:
             qm_epochs = st.slider("Epochs", 5, 100, 20, key="qm_epochs")
 
-        if st.button("🚀 Train Quantum Model", key="train_qm"):
+        if st.button("⚡ Run Quantum Analysis", key="train_qm"):
             with st.spinner("Training quantum circuit... (this is slow on CPU)"):
                 try:
                     qm_cfg = QuantumConfig(
@@ -1027,8 +1356,8 @@ if _QM:
 if _BT:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 📈 Backtester")
-        st.markdown("Run a backtest using indicator-based signals on your loaded data.")
+        st.markdown("### 📈 Strategy Tester")
+        st.markdown("Test your trading strategy against historical data to see how it would have performed.")
 
         bt_col1, bt_col2, bt_col3, bt_col4 = st.columns(4)
         with bt_col1:
@@ -1040,7 +1369,7 @@ if _BT:
         with bt_col4:
             bt_tp = st.number_input("Take Profit (%)", 0.0, 50.0, 0.0, step=1.0, key="bt_tp")
 
-        if st.button("🚀 Run Backtest", key="run_bt"):
+        if st.button("⚡ Test Strategy", key="run_bt"):
             with st.spinner("Running backtest..."):
                 try:
                     bt_cfg = BacktestConfig(
@@ -1084,7 +1413,7 @@ if _BT:
                             x=eq.index if hasattr(eq, 'index') else list(range(len(eq))),
                             y=eq.values if hasattr(eq, 'values') else eq,
                             name="Equity",
-                            line=dict(color="#00ffc8", width=2),
+                            line=dict(color="#00ffaa", width=2),
                             fill="tozeroy", fillcolor="rgba(0,255,200,0.06)",
                         ))
                         eq_fig.update_layout(**CHART_LAYOUT, height=350,
@@ -1113,8 +1442,8 @@ if _BT:
 if _RD:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 🔄 Market Regime Detection")
-        st.markdown("Detect BULL / BEAR / VOLATILE regimes using KMeans clustering.")
+        st.markdown("### 🔄 Market Mood")
+        st.markdown("Detect whether the market is in a Bullish, Bearish, or Volatile phase right now.")
 
         rd_col1, rd_col2 = st.columns(2)
         with rd_col1:
@@ -1122,7 +1451,7 @@ if _RD:
         with rd_col2:
             rd_backend = st.selectbox("Backend", ["kmeans"], key="rd_backend")
 
-        if st.button("🚀 Detect Regimes", key="detect_regime"):
+        if st.button("⚡ Analyze Mood", key="detect_regime"):
             with st.spinner("Detecting market regimes..."):
                 try:
                     regime_df = prepare_regime_features(df)
@@ -1130,8 +1459,8 @@ if _RD:
                     regimes = detector.fit_predict(regime_df)
                     st.session_state["regimes"] = regimes
 
-                    color_map = {"BULL": "#00ffc8", "BEAR": "#ff4566", "VOLATILE": "#ffd166", "UNKNOWN": "#5a6a7a"}
-                    regime_colors = [color_map.get(r, "#5a6a7a") for r in regimes]
+                    color_map = {"BULL": "#00ffaa", "BEAR": "#ff4060", "VOLATILE": "#ffc844", "UNKNOWN": "#4a5a6e"}
+                    regime_colors = [color_map.get(r, "#4a5a6e") for r in regimes]
 
                     reg_fig = go.Figure()
                     reg_fig.add_trace(go.Scatter(
@@ -1153,7 +1482,7 @@ if _RD:
                     rc = regimes.value_counts()
                     regime_pie = go.Figure(go.Pie(
                         labels=rc.index, values=rc.values,
-                        marker=dict(colors=[color_map.get(r, "#5a6a7a") for r in rc.index]),
+                        marker=dict(colors=[color_map.get(r, "#4a5a6e") for r in rc.index]),
                         textfont=dict(color="#e0e8f0"),
                     ))
                     regime_pie.update_layout(paper_bgcolor="rgba(0,0,0,0)",
@@ -1164,8 +1493,8 @@ if _RD:
 
                     current_regime = regimes.iloc[-1]
                     st.markdown(f"<div style='text-align:center;padding:15px;'>"
-                                f"<span style='font-family:Space Mono;font-size:1.3rem;"
-                                f"color:{color_map.get(current_regime, '#5a6a7a')};'>"
+                                f"<span style='font-family:Inter,sans-serif;font-size:1.3rem;"
+                                f"color:{color_map.get(current_regime, '#4a5a6e')};'>"
                                 f"Current Regime: {current_regime}</span></div>",
                                 unsafe_allow_html=True)
 
@@ -1181,8 +1510,8 @@ if _RD:
 if _ST:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 🔥 Stress Testing")
-        st.markdown("Simulate historical crisis scenarios on your portfolio.")
+        st.markdown("### 🔥 Risk Simulator")
+        st.markdown("See how your portfolio would survive major market crashes and crisis events.")
 
         crisis_options = list(CRISIS_PROFILES.keys())
         selected_crisis = st.selectbox("Select Crisis Scenario", crisis_options,
@@ -1195,7 +1524,7 @@ if _ST:
                     f"Peak Drawdown: {crisis['peak_drawdown']:.1%} · "
                     f"VIX Peak: {crisis['vix_peak']:.1f}")
 
-        if st.button("🚀 Run Stress Test", key="run_stress"):
+        if st.button("⚡ Simulate Crisis", key="run_stress"):
             with st.spinner("Simulating crisis..."):
                 try:
                     tester = StressTester()
@@ -1208,7 +1537,7 @@ if _ST:
                             x=eq.index if hasattr(eq, 'index') else list(range(len(eq))),
                             y=eq.values if hasattr(eq, 'values') else eq,
                             name="Portfolio Value",
-                            line=dict(color="#ff4566", width=2),
+                            line=dict(color="#ff4060", width=2),
                             fill="tozeroy", fillcolor="rgba(255,69,102,0.06)",
                         ))
                         st_fig.update_layout(**CHART_LAYOUT, height=350,
@@ -1246,10 +1575,10 @@ if _ST:
 if _LLM:
     with tabs[tab_idx]:
         tab_idx += 1
-        st.markdown("### 📰 News & Sentiment")
-        st.markdown("Aggregate financial news and sentiment scores.")
+        st.markdown("### 📰 Market News")
+        st.markdown("Real-time news headlines with AI-powered sentiment analysis.")
 
-        if st.button("📰 Fetch Latest News", key="fetch_news"):
+        if st.button("⚡ Get Latest News", key="fetch_news"):
             with st.spinner("Collecting news..."):
                 try:
                     collector = NewsCollector()
@@ -1259,16 +1588,18 @@ if _LLM:
                         for h in headlines:
                             score = h.get("score", 0)
                             if score > 0.15:
-                                badge = '<span style="color:#00ffc8;">BULLISH</span>'
+                                badge = '<span style="color:#00ffaa;">BULLISH</span>'
                             elif score < -0.15:
-                                badge = '<span style="color:#ff4566;">BEARISH</span>'
+                                badge = '<span style="color:#ff4060;">BEARISH</span>'
                             else:
-                                badge = '<span style="color:#ffd166;">NEUTRAL</span>'
+                                badge = '<span style="color:#ffc844;">NEUTRAL</span>'
 
                             st.markdown(
-                                f'<div style="background:#131a24;border:1px solid rgba(0,255,200,0.12);'
-                                f'border-radius:10px;padding:12px;margin-bottom:8px;">'
-                                f'<div style="font-family:Space Mono;font-size:0.7rem;color:#5a6a7a;">'
+                                f'<div style="background:linear-gradient(145deg,rgba(15,22,35,0.9),rgba(10,16,28,0.95));'
+                                f'border:1px solid rgba(0,255,170,0.1);'
+                                f'border-radius:16px;padding:16px;margin-bottom:10px;backdrop-filter:blur(12px);'
+                                f'box-shadow:0 4px 20px rgba(0,0,0,0.2);transition:all 0.3s;">'
+                                f'<div style="font-family:Inter,sans-serif;font-size:0.72rem;color:#4a5a6e;">'
                                 f'{h.get("source", "")} · {h.get("date", "")} · {badge}</div>'
                                 f'<div style="font-size:0.9rem;color:#e0e8f0;margin-top:4px;">'
                                 f'{h.get("title", "")}</div>'
@@ -1285,7 +1616,7 @@ if _LLM:
 
 with tabs[tab_idx]:
     tab_idx += 1
-    st.markdown("### 📋 Raw Indicator Data")
+    st.markdown("### 📋 Data Explorer")
 
     display_cols = ["Open", "High", "Low", "Close", "Volume"]
     for col in [f"SMA_{sma_p}", f"EMA_{ema_p}", "RSI", "MACD", "MACD_Signal",
@@ -1320,8 +1651,8 @@ with tabs[tab_idx]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 st.markdown(
-    '<div style="text-align:center;font-family:Space Mono;font-size:0.65rem;'
-    'color:#2a3a4a;padding:20px 0 10px;">NeuroTrade · For educational purposes only · '
-    'Not financial advice</div>',
+    '<div style="text-align:center;font-family:Inter,sans-serif;font-size:0.68rem;'
+    'color:#2a3a4a;padding:24px 0 12px;letter-spacing:0.02em;">'
+    '⚡ NeuroTrade · For educational purposes only · Not financial advice</div>',
     unsafe_allow_html=True,
 )

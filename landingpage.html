@@ -684,8 +684,8 @@ footer {
   </div>
 
   <div class="nav-right">
-    <a href="#" class="btn-outline">Get Started →</a>
-    <a href="#" class="btn-fill" onclick="tryNow(event)">Contact Sales</a>
+    <a href="#features" class="btn-outline">Learn More →</a>
+    <a href="#" class="btn-fill" onclick="tryNow(event)">Try Now</a>
   </div>
 </nav>
 
@@ -701,8 +701,8 @@ footer {
   <p>We're eliminating the friction of manual analysis, connecting traders to institutional-grade signals and real-time market intelligence.</p>
 
   <div class="hero-btns">
-    <a href="#" class="btn-outline" onclick="tryNow(event)">Get Started →</a>
-    <a href="#features" class="btn-fill">Try NeuroTrade</a>
+    <a href="#" class="btn-fill" onclick="tryNow(event)">⚡ Try Now — It's Free</a>
+    <a href="#features" class="btn-outline">Learn More →</a>
   </div>
 
   <!-- Hero dashboard card -->
@@ -972,13 +972,14 @@ document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 // ── Try Now ──────────────────────────────────────────────────────────
 function tryNow(e) {
   e.preventDefault();
-  // Replace with your Streamlit URL:
-  // window.location.href = 'http://localhost:8501';
   const btn = e.currentTarget;
   const orig = btn.innerHTML;
-  btn.innerHTML = '✅ &nbsp;Launching...';
+  btn.innerHTML = '⚡ &nbsp;Launching Terminal...';
   btn.style.pointerEvents = 'none';
-  setTimeout(() => { btn.innerHTML = orig; btn.style.pointerEvents = ''; }, 2000);
+  btn.style.boxShadow = '0 0 40px rgba(26,255,140,0.6)';
+  setTimeout(() => {
+    window.location.href = '/';
+  }, 600);
 }
 </script>
 </body>
