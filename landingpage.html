@@ -34,7 +34,7 @@ body {
   min-height: 100vh;
 }
 
-/*  Noise texture overlay  */
+/* ── Noise texture overlay ── */
 body::before {
   content: '';
   position: fixed;
@@ -46,7 +46,9 @@ body::before {
   z-index: 9999;
 }
 
-/*  NAV  */
+/* ══════════════════════════════
+   NAV
+══════════════════════════════ */
 nav {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -138,7 +140,9 @@ nav {
 }
 .btn-fill:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 0 36px rgba(26,255,140,0.5); }
 
-/* HERO */
+/* ══════════════════════════════
+   HERO
+══════════════════════════════ */
 .hero {
   position: relative;
   min-height: 100vh;
@@ -315,7 +319,9 @@ nav {
 .sig-sell { background: rgba(255,69,102,0.1); border: 1px solid rgba(255,69,102,0.3); color: #ff5f72; }
 .sig-hold { background: rgba(255,208,80,0.1); border: 1px solid rgba(255,208,80,0.3); color: #ffd080; }
 
-/* LOGOS STRIP */
+/* ══════════════════════════════
+   LOGOS STRIP
+══════════════════════════════ */
 .logos-strip {
   padding: 40px 52px;
   border-top: 1px solid var(--border);
@@ -358,9 +364,9 @@ nav {
   to   { transform: translateX(-50%); }
 }
 
-/*
+/* ══════════════════════════════
    SECTIONS
-  */
+══════════════════════════════ */
 .section-wrap {
   max-width: 1100px;
   margin: 0 auto;
@@ -514,7 +520,9 @@ nav {
 }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* BANNER: Faster. Smarter. */
+/* ══════════════════════════════
+   BANNER: Faster. Smarter.
+══════════════════════════════ */
 .banner {
   text-align: center;
   padding: 100px 32px;
@@ -540,7 +548,9 @@ nav {
 }
 .banner p { font-size: 0.9rem; color: var(--muted); max-width: 380px; margin: 0 auto; line-height: 1.7; }
 
-/* INDICATORS SECTION */
+/* ══════════════════════════════
+   INDICATORS SECTION
+══════════════════════════════ */
 .ind-section {
   padding: 80px 52px;
   max-width: 1100px;
@@ -579,7 +589,9 @@ nav {
 .ind-chip:hover { border-color: var(--border2); color: var(--text); background: rgba(26,255,140,0.04); }
 .ind-chip .chip-dot { width: 5px; height: 5px; background: var(--glow3); border-radius: 50%; flex-shrink: 0; }
 
-/* CTA SECTION */
+/* ══════════════════════════════
+   CTA SECTION
+══════════════════════════════ */
 .cta-sec {
   padding: 100px 32px;
   text-align: center;
@@ -614,7 +626,9 @@ nav {
 }
 .cta-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-/* FOOTER */
+/* ══════════════════════════════
+   FOOTER
+══════════════════════════════ */
 footer {
   border-top: 1px solid var(--border);
   padding: 28px 52px;
@@ -624,7 +638,9 @@ footer {
 }
 .footer-copy { font-size: 0.72rem; color: var(--muted2); }
 
-/* ANIMATIONS */
+/* ══════════════════════════════
+   ANIMATIONS
+══════════════════════════════ */
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -637,7 +653,9 @@ footer {
 }
 .reveal.vis { opacity: 1; transform: none; }
 
-/*  RESPONSIVE */
+/* ══════════════════════════════
+   RESPONSIVE
+══════════════════════════════ */
 @media (max-width: 768px) {
   nav { padding: 14px 20px; }
   .nav-center { display: none; }
@@ -752,8 +770,8 @@ footer {
       <div class="signal-row">
         <div class="sig-pill sig-buy">▲ BUY Signal</div>
         <div class="sig-pill sig-hold">— RSI Neutral 58.4</div>
-        <div class="sig-pill sig-buy"> MACD Bullish Cross</div>
-        <div class="sig-pill sig-buy"> ADX Strong Trend</div>
+        <div class="sig-pill sig-buy">⚡ MACD Bullish Cross</div>
+        <div class="sig-pill sig-buy">💪 ADX Strong Trend</div>
       </div>
     </div>
   </div>
@@ -918,12 +936,12 @@ footer {
 </footer>
 
 <script>
-// Logos 
+// ── Logos ──────────────────────────────────────────────────────────────
 const logos = [
-  "📊 AAPL", "₿ BTC-USD", " MSFT", " NVDA",
-  " TSLA", "Ξ ETH-USD", " GOOGL", " AMZN",
-  " META", "SOL-USD", "RELIANCE.NS", "💻 TCS.NS",
-  " AMD", " GLD", "SPY",
+  "📊 AAPL", "₿ BTC-USD", "🟦 MSFT", "🚀 NVDA",
+  "⚡ TSLA", "Ξ ETH-USD", "🔵 GOOGL", "📦 AMZN",
+  "🌐 META", "☀️ SOL-USD", "🇮🇳 RELIANCE.NS", "💻 TCS.NS",
+  "🔴 AMD", "🥇 GLD", "📈 SPY",
 ];
 (function buildLogos() {
   const track = document.getElementById('logosTrack');
@@ -933,14 +951,14 @@ const logos = [
   track.innerHTML = items;
 })();
 
-//  Accordion 
+// ── Accordion ──────────────────────────────────────────────────────────
 function toggleAcc(item) {
   const parent = item.closest('.accordion');
   parent.querySelectorAll('.acc-item').forEach(i => i.classList.remove('open'));
   item.classList.add('open');
 }
 
-//  Scroll reveal 
+// ── Scroll reveal ──────────────────────────────────────────────────────
 const io = new IntersectionObserver(entries => {
   entries.forEach((e, i) => {
     if (e.isIntersecting) {
@@ -951,12 +969,14 @@ const io = new IntersectionObserver(entries => {
 }, { threshold: 0.1 });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
-// Try Now 
+// ── Try Now ──────────────────────────────────────────────────────────
 function tryNow(e) {
   e.preventDefault();
+  // Replace with your Streamlit URL:
+  // window.location.href = 'http://localhost:8501';
   const btn = e.currentTarget;
   const orig = btn.innerHTML;
-  btn.innerHTML = ' &nbsp;Launching...';
+  btn.innerHTML = '✅ &nbsp;Launching...';
   btn.style.pointerEvents = 'none';
   setTimeout(() => { btn.innerHTML = orig; btn.style.pointerEvents = ''; }, 2000);
 }
